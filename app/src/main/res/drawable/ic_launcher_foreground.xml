@@ -1,0 +1,43 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Shadow/Outline of the Calculator (Subtle elevation styling) -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M30,22.5 h48 c3.6,0 6.5,2.9 6.5,6.5 v50 c0,3.6 -2.9,6.5 -6.5,6.5 h-48 c-3.6,0 -6.5,-2.9 -6.5,-6.5 v-50 c0,-3.6 2.9,-6.5 6.5,-6.5 z" />
+
+    <!-- Main White Calculator Body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,24 h44 c3.3,0 6,2.7 6,6 v48 c0,3.3 -2.7,6 -6,6 h-44 c-3.3,0 -6,-2.7 -6,-6 v-48 c0,-3.3 2.7,-6 6,-6 z" />
+
+    <!-- Screen Area (Dark Tint) -->
+    <path
+        android:fillColor="#0F172A"
+        android:pathData="M38,30 h32 c1.1,0 2,0.9 2,2 v8 c0,1.1 -0.9,2 -2,2 h-32 c-1.1,0 -2,-0.9 -2,-2 v-8 c0,-1.1 0.9,-2 2,-2 z" />
+
+    <!-- Small formula text mock line on the screen -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M42,35 h24 v2 h-24 z" />
+
+    <!-- Calculator Button Pins Grid -->
+    <!-- Button Round Row 1 -->
+    <path android:fillColor="#0F172A" android:pathData="M42,48 a3,3 0 1,1 0,6 a3,3 0 1,1 0,-6 z" />
+    <path android:fillColor="#0F172A" android:pathData="M54,48 a3,3 0 1,1 0,6 a3,3 0 1,1 0,-6 z" />
+    <path android:fillColor="#38BDF8" android:pathData="M66,48 a3,3 0 1,1 0,6 a3,3 0 1,1 0,-6 z" />
+
+    <!-- Button Round Row 2 -->
+    <path android:fillColor="#0F172A" android:pathData="M42,58 a3,3 0 1,1 0,6 a3,3 0 1,1 0,-6 z" />
+    <path android:fillColor="#0F172A" android:pathData="M54,58 a3,3 0 1,1 0,6 a3,3 0 1,1 0,-6 z" />
+    <path android:fillColor="#38BDF8" android:pathData="M66,58 a3,3 0 1,1 0,6 a3,3 0 1,1 0,-6 z" />
+
+    <!-- Button Round Row 3 -->
+    <path android:fillColor="#0F172A" android:pathData="M42,68 a3,3 0 1,1 0,6 a3,3 0 1,1 0,-6 z" />
+    <path android:fillColor="#0F172A" android:pathData="M54,68 a3,3 0 1,1 0,6 a3,3 0 1,1 0,-6 z" />
+    <path android:fillColor="#F43F5E" android:pathData="M66,68 a3,3 0 1,1 0,6 a3,3 0 1,1 0,-6 z" />
+
+</vector>
