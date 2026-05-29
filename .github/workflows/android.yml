@@ -22,19 +22,19 @@ jobs:
     - name: Grant execute permission
       run: chmod +x gradlew
 
-    # 🔐 Decode Keystore
+    # 🔐 Decode Keystore (Isse 'app' folder ke andar hi banayein)
     - name: Decode Keystore
       run: |
-        echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > release.keystore
+        echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > app/release.keystore
 
     # 🔥 Build Release APK
     - name: Build Release APK
       run: ./gradlew assembleRelease
       env:
-        KEYSTORE_FILE: release.keystore
-        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        # Ye names aapke build.gradle.kts ke System.getenv() se match hone chahiye
+        SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
     # 📦 Upload APK
     - name: Upload Release APK
@@ -42,3 +42,4 @@ jobs:
       with:
         name: release-apk
         path: app/build/outputs/apk/release/*.apk
+        
