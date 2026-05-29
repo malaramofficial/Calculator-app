@@ -131,6 +131,9 @@ fun CalculatorLockScreen(viewModel: CalculatorViewModel) {
             .padding(16.dp),
         verticalArrangement = Arrangement.Bottom
     ) {
+        // High visibility custom banner ad at the top of the calculator
+        BannerAd(modifier = Modifier.padding(bottom = 12.dp))
+
         // Output Displays
         Box(
             modifier = Modifier
@@ -2103,6 +2106,9 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
                     }
                 }
             }
+
+            // High monetization sticky banner ad above the chat box input
+            BannerAd()
 
             // Bottom Message Type Box Input
             Surface(

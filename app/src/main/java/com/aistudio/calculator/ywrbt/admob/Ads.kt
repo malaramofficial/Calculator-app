@@ -15,8 +15,8 @@ import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 
 object AdsManager {
-    private const val BANNER_ID = "ca-app-pub-7149517611524053/4546942213"
-    private const val INTERSTITIAL_ID = "ca-app-pub-7149517611524053/2159240571"
+    private const val BANNER_ID = "ca-app-pub-8025952772610171/3887553931"
+    private const val INTERSTITIAL_ID = "ca-app-pub-8025952772610171/2235560917"
 
     private var interstitialAd: InterstitialAd? = null
 
@@ -50,7 +50,7 @@ fun BannerAd(modifier: Modifier = Modifier) {
         factory = { context ->
             AdView(context).apply {
                 setAdSize(AdSize.BANNER)
-                adUnitId = "ca-app-pub-7149517611524053/4546942213"
+                adUnitId = "ca-app-pub-8025952772610171/3887553931"
                 loadAd(AdRequest.Builder().build())
             }
         },
