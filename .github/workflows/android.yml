@@ -1,39 +1,48 @@
 name: Android Release Build
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [ "main" ] # Agar aapki branch ka naam 'master' hai toh yahan badal dein
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    # 1. Repository se code checkout karna
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Show project structure
-        run: ls -R
+    # 2. Java setup karna (JDK 17)
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
 
-      - name: Setup JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
+    # 3. Gradle wrapper ko execute karne ki permission dena
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
 
-      - name: Verify gradlew exists
-        run: |
-          ls -la
-          chmod +x gradlew
+    # 4. APK Build karna (Yahan se asli file banti hai)
+    - name: Build Release APK
+      run: ./gradlew assembleRelease --stacktrace
 
-      - name: Build Release APK
-        run: ./gradlew assembleRelease --stacktrace --info
+    # 5. Build hone ke baad file check karna (Debug purpose ke liye)
+    - name: List build folder
+      run: ls -R app/build/outputs/apk/
 
-      - name: Find APK files
-        run: find . -name "*.apk"
-
-      - name: Show build outputs
-        run: ls -R app/build/outputs || true
-
+    # 6. APK file ko upload karna (Taki aap download kar sakein)
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-release
+        # Path ko fix kiya gaya hai:
+        path: app/build/outputs/apk/release/*.apk
+        if-no-files-found: error # Agar file nahi mili toh build fail dikhayega
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
