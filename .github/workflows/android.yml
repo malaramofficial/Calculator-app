@@ -2,10 +2,14 @@ name: Android Release Build
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches:
+      - main
+      - master
 
   pull_request:
-    branches: [ "main", "master" ]
+    branches:
+      - main
+      - master
 
   workflow_dispatch:
 
@@ -35,6 +39,16 @@ jobs:
 
       - name: Find APK files
         run: find . -name "*.apk"
+
+      - name: Show build outputs
+        run: ls -R app/build/outputs || true
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Calculator-Release-APK
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error        run: find . -name "*.apk"
 
       - name: Show build outputs
         run: ls -R app/build/outputs || true
