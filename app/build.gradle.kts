@@ -17,9 +17,6 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // vectorDrawables {
-        //     useSupportLibrary = true
-        // }
 
         buildConfigField("String", "GEMINI_API_KEY", "\"${System.getenv("GEMINI_API_KEY") ?: ""}\"")
         buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"dsnetrfzy\"")
@@ -27,15 +24,30 @@ android {
         buildConfigField("String", "CLOUDINARY_API_SECRET", "\"oHqH2-oyDM7t7htVQkGrf0yVi7c\"")
     }
 
+    // --- SIGNING CONFIGURATION ADDED HERE ---
+    signingConfigs {
+        create("release") {
+            // GitHub Action step "Decode Keystore" isse 'app/release.keystore' pe banayega
+            storeFile = file("release.keystore")
+            storePassword = System.getenv("SIGNING_STORE_PASSWORD")
+            keyAlias = System.getenv("SIGNING_KEY_ALIAS")
+            keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            // Isse signed APK banegi
+            signingConfig = signingConfigs.getByName("release")
+            
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -89,17 +101,19 @@ dependencies {
 
 tasks.register("copyApkToRoot") {
     doLast {
-        val apkFile = file("build/outputs/apk/debug/app-debug.apk")
+        val apkFile = file("build/outputs/apk/release/app-release.apk")
         if (apkFile.exists()) {
             val destDir = file("../malaramofficial")
             destDir.mkdirs()
-            apkFile.copyTo(file("../malaramofficial/app-debug.apk"), overwrite = true)
-            apkFile.copyTo(file("../app-debug.apk"), overwrite = true)
-            println("APK copied successfully to malaramofficial/app-debug.apk and root of the project!")
-        } else {
-            println("Warning: APK not found at build/outputs/apk/debug/app-debug.apk")
+            apkFile.copyTo(file("../malaramofficial/app-release.apk"), overwrite = true)
+            apkFile.copyTo(file("../app-release.apk"), overwrite = true)
+            println("Signed APK copied successfully!")
         }
     }
+}
+
+afterEvaluate {
+    tasks.findByName("assembleRelease")?.finalizedBy("copyApkToRoot")
 }
 
 afterEvaluate {
