@@ -2,20 +2,20 @@ name: Android Release Build
 
 on:
   push:
-    branches: [ "main" ] # Agar aapki branch ka naam 'master' hai toh yahan badal dein
+    branches: [ "main", "master" ] # Aapki branch ka naam chahe 'main' ho ya 'master', ye dono par chalega
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. Repository se code checkout karna
+    # 1. GitHub repository se code ko clone/checkout karna
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # 2. Java setup karna (JDK 17)
+    # 2. JDK 17 setup karna aur Gradle cache enable karna
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
@@ -23,17 +23,22 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    # 3. Gradle wrapper ko execute karne ki permission dena
+    # 3. Gradlew wrapper ko execute karne ki permission dena (Sabse Zaroori)
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    # 4. APK Build karna (Yahan se asli file banti hai)
+    # 4. Calculator-app ka Release APK build karna
     - name: Build Release APK
       run: ./gradlew assembleRelease --stacktrace
 
-    # 5. Build hone ke baad file check karna (Debug purpose ke liye)
-    - name: List build folder
-      run: ls -R app/build/outputs/apk/
+    # 5. Generated APK file ko GitHub par upload karna
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Calculator-Release-APK
+        # Sahi aur exact path jahan Android Gradle plugin APK save karta hai
+        path: app/build/outputs/apk/release/*.apk
+        if-no-files-found: error
 
     # 6. APK file ko upload karna (Taki aap download kar sakein)
     - name: Upload APK
