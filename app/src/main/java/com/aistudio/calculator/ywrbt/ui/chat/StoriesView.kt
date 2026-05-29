@@ -37,6 +37,13 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.shadow
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import coil.compose.AsyncImage
 import com.aistudio.calculator.ywrbt.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -70,6 +77,445 @@ fun parseStoryContent(storedText: String): Pair<String, String> {
         preset to msg
     } else {
         "default" to storedText
+    }
+}
+
+// Extract frame theme and story caption from stored text payload
+fun parsePhotoStory(storedText: String): Pair<String, String> {
+    return if (storedText.startsWith("[FRAME:") && storedText.contains("]")) {
+        val closeIndex = storedText.indexOf("]")
+        val theme = storedText.substring(7, closeIndex)
+        val caption = storedText.substring(closeIndex + 1)
+        theme to caption
+    } else {
+        "polaroid" to storedText
+    }
+}
+
+// Persist the picked image in internal sandbox storage cleanly
+fun saveStoryImageToInternal(context: android.content.Context, uri: android.net.Uri): String? {
+    return try {
+        val extension = context.contentResolver.getType(uri)?.substringAfterLast("/") ?: "jpg"
+        val fileName = "story_img_${System.currentTimeMillis()}.$extension"
+        val destFile = java.io.File(context.filesDir, fileName)
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            destFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+        destFile.absolutePath
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
+@Composable
+fun PolaroidFrame(
+    imageUri: String?,
+    caption: String,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .padding(16.dp)
+            .shadow(12.dp, RoundedCornerShape(4.dp)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFBF9F2)), // Warm retro off-white
+        shape = RoundedCornerShape(4.dp),
+        border = BorderStroke(1.dp, Color(0xFFE3DCCF))
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Standard photo frame square aspect ratio
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center
+            ) {
+                if (imageUri != null) {
+                    AsyncImage(
+                        model = imageUri,
+                        contentDescription = "Polaroid shot",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(20.dp))
+            
+            // Cursive handwritten retro caption
+            Text(
+                text = caption.ifEmpty { "पल यादें... 💭" },
+                color = Color(0xFF2E2722),
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Cursive,
+                fontSize = 21.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp),
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+fun NeonGlassFrame(
+    imageUri: String?,
+    caption: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(20.dp))
+    ) {
+        if (imageUri != null) {
+            AsyncImage(
+                model = imageUri,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        
+        // Dynamic Neon vignette overlays
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.3f),
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.8f)
+                        )
+                    )
+                )
+        )
+
+        // Frosted Glass custom block
+        Card(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(18.dp)
+                .border(
+                    BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
+                    RoundedCornerShape(16.dp)
+                ),
+            colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.12f)),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = caption.ifEmpty { "🌌 Cosmic Glass..." },
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    lineHeight = 22.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun PaperJournalFrame(
+    imageUri: String?,
+    caption: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .background(Color(0xFFFAF8EA)) // Textured beige diary paper
+            .padding(24.dp)
+            .drawBehind {
+                // Faint brown-lined journal grids
+                val strokeWidth = 1f
+                val spacing = 26.dp.toPx()
+                var currentY = 130.dp.toPx()
+                while (currentY < size.height) {
+                    drawLine(
+                        color = Color(0xFFEADACD).copy(alpha = 0.5f), // Clean elegant faint brown line
+                        start = androidx.compose.ui.geometry.Offset(20.dp.toPx(), currentY),
+                        end = androidx.compose.ui.geometry.Offset(size.width - 20.dp.toPx(), currentY),
+                        strokeWidth = strokeWidth
+                    )
+                    currentY += spacing
+                }
+            }
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Angled stuck memo format with an tape seal on top
+            Box(
+                modifier = Modifier
+                    .weight(1.2f)
+                    .fillMaxWidth(0.9f)
+                    .graphicsLayer(rotationZ = -2.5f)
+                    .shadow(8.dp, RoundedCornerShape(6.dp))
+                    .background(Color.White)
+                    .padding(8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (imageUri != null) {
+                    AsyncImage(
+                        model = imageUri,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(2.dp))
+                    )
+                }
+                
+                // Old translucent desk tape overlay
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .offset(y = (-12).dp)
+                        .width(64.dp)
+                        .height(16.dp)
+                        .graphicsLayer(alpha = 0.55f)
+                        .background(Color(0xFFE4D2B5), RoundedCornerShape(2.dp))
+                        .border(0.5.dp, Color(0xFFC0AA8C), RoundedCornerShape(2.dp))
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Journal logs
+            Column(
+                modifier = Modifier
+                    .weight(0.8f)
+                    .fillMaxWidth()
+            ) {
+                Text(
+                    text = "MEMO WRITING • कलात्मक जर्नल",
+                    color = Color(0xFFAA7039),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+                Text(
+                    text = caption.ifEmpty { "आज मेरे विचारों की डायरी..." },
+                    color = Color(0xFF332D2A),
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    lineHeight = 26.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun AmbientAuroraFrame(
+    imageUri: String?,
+    caption: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        // High blurred underlying image
+        if (imageUri != null) {
+            AsyncImage(
+                model = imageUri,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(alpha = 0.5f)
+                    .blur(28.dp)
+            )
+        }
+        
+        // Deep radial cover
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f)),
+                        radius = 1100f
+                    )
+                )
+        )
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxWidth(0.88f)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1.3f)
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(28.dp))
+                    .border(
+                        BorderStroke(
+                            3.dp,
+                            Brush.linearGradient(
+                                listOf(Color(0xFFFF007F), Color(0xFF7F00FF))
+                            )
+                        ),
+                        RoundedCornerShape(28.dp)
+                    )
+                    .shadow(16.dp, RoundedCornerShape(28.dp))
+                    .background(Color.DarkGray)
+            ) {
+                if (imageUri != null) {
+                    AsyncImage(
+                        model = imageUri,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Box(
+                modifier = Modifier
+                    .weight(0.7f),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Text(
+                    text = caption.ifEmpty { "🔮 आवा मंडल (Aurora glow)..." },
+                    color = Color.White,
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Bold,
+                    lineHeight = 25.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun CinemaWideFrame(
+    imageUri: String?,
+    caption: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.background(Color.Black),
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        // Aesthetic caption details
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.3f)
+                .background(Color.Black),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Text(
+                text = "🎬 STILL FRAME FROM MEMORIES",
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+                modifier = Modifier.padding(start = 24.dp)
+            )
+        }
+
+        // Center cinema snapshot area (21:9 formatting feel)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .background(Color(0xFF0F0F0F)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (imageUri != null) {
+                AsyncImage(
+                    model = imageUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Black.copy(alpha = 0.25f),
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.25f)
+                            )
+                        )
+                    )
+            )
+        }
+
+        // Beautiful subtitle captions on widescreen bottom border
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.5f)
+                .background(Color.Black)
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = if (caption.isNotEmpty()) "“ $caption ”" else "सिनेमैटिक पल...",
+                color = Color(0xFFFEE140), // Classic yellow movie subtitle color tone
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 24.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+fun DispatchFrameTheme(
+    themeKey: String,
+    imageUri: String?,
+    caption: String,
+    modifier: Modifier = Modifier
+) {
+    when (themeKey) {
+        "polaroid" -> PolaroidFrame(imageUri, caption, modifier)
+        "glass" -> NeonGlassFrame(imageUri, caption, modifier)
+        "journal" -> PaperJournalFrame(imageUri, caption, modifier)
+        "aurora" -> AmbientAuroraFrame(imageUri, caption, modifier)
+        "cinema" -> CinemaWideFrame(imageUri, caption, modifier)
+        else -> PolaroidFrame(imageUri, caption, modifier)
     }
 }
 
@@ -345,9 +791,33 @@ fun PostStoryDialog(
     onDismiss: () -> Unit,
     onPost: (String, String?) -> Unit
 ) {
+    val context = LocalContext.current
     var storyText by remember { mutableStateOf("") }
     val presets = listOf("sunset", "midnight", "forest", "cosmic", "neon", "love")
     var selectedPreset by remember { mutableStateOf(presets[0]) }
+
+    // Image integration states
+    var selectedImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var selectedFrameTheme by remember { mutableStateOf("polaroid") }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+        onResult = { uri ->
+            if (uri != null) {
+                selectedImageUri = uri
+            }
+        }
+    )
+
+    val frameThemes = listOf(
+        "polaroid" to "🖼️ Polaroid",
+        "glass" to "🌌 Cosmic Glass",
+        "journal" to "📝 Journal",
+        "aurora" to "🔮 Aurora Glow",
+        "cinema" to "🎬 Cinema Wide"
+    )
+
+    val isPostButtonEnabled = if (selectedImageUri != null) true else storyText.trim().isNotEmpty()
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -360,7 +830,14 @@ fun PostStoryDialog(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("नया स्टेटस (Create Status)", color = TextLight, fontSize = 16.sp, fontWeight = FontWeight.Bold) },
+                    title = {
+                        Text(
+                            text = if (selectedImageUri != null) "फोटो स्टेटस बनाएं" else "नया टेक्स्ट स्टेटस",
+                            color = TextLight,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
                             Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = TextLight)
@@ -369,17 +846,22 @@ fun PostStoryDialog(
                     actions = {
                         TextButton(
                             onClick = {
-                                if (storyText.trim().isNotEmpty()) {
-                                    // Save customized gradient inside the stored text string
+                                if (selectedImageUri != null) {
+                                    val clonedPath = saveStoryImageToInternal(context, selectedImageUri!!)
+                                    if (clonedPath != null) {
+                                        val payload = "[FRAME:$selectedFrameTheme]${storyText.trim()}"
+                                        onPost(payload, clonedPath)
+                                    }
+                                } else {
                                     val formattedPayload = "[BG:$selectedPreset]${storyText.trim()}"
                                     onPost(formattedPayload, null)
                                 }
                             },
-                            enabled = storyText.trim().isNotEmpty()
+                            enabled = isPostButtonEnabled
                         ) {
                             Text(
                                 "Post (लगाएं)",
-                                color = if (storyText.trim().isNotEmpty()) AccentBlue else TextMuted,
+                                color = if (isPostButtonEnabled) AccentBlue else TextMuted,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp
                             )
@@ -399,96 +881,214 @@ fun PostStoryDialog(
                 verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Interactive Status Typing Area with beautiful gradients
+                // Interactive Status Typing/Preview Area with templates
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(
-                            Brush.linearGradient(colors = getGradientForPreset(selectedPreset))
-                        )
-                        .padding(24.dp),
+                        .background(CardSlate)
+                        .padding(bottom = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    TextField(
-                        value = storyText,
-                        onValueChange = { if (it.length <= 150) storyText = it },
-                        placeholder = {
-                            Text(
-                                "क्या चल रहा है? यहाँ लिखें...\n(Type status update here)",
-                                color = Color.White.copy(alpha = 0.6f),
-                                textAlign = TextAlign.Center,
-                                fontSize = 20.sp
+                    if (selectedImageUri != null) {
+                        // Show beautiful custom live frame preview
+                        DispatchFrameTheme(
+                            themeKey = selectedFrameTheme,
+                            imageUri = selectedImageUri.toString(),
+                            caption = storyText,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        // Standard Typing Canvas for Text story with gradients
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.linearGradient(colors = getGradientForPreset(selectedPreset))
+                                )
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            TextField(
+                                value = storyText,
+                                onValueChange = { if (it.length <= 150) storyText = it },
+                                placeholder = {
+                                    Text(
+                                        "क्या चल रहा है? यहाँ लिखें...\n(Type status update here)",
+                                        color = Color.White.copy(alpha = 0.6f),
+                                        textAlign = TextAlign.Center,
+                                        fontSize = 20.sp
+                                    )
+                                },
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    disabledContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    cursorColor = Color.White
+                                ),
+                                textStyle = LocalTextStyle.current.copy(
+                                    color = Color.White,
+                                    textAlign = TextAlign.Center,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    lineHeight = 28.sp
+                                ),
+                                modifier = Modifier.fillMaxSize()
                             )
-                        },
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            disabledContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            cursorColor = Color.White
-                        ),
-                        textStyle = LocalTextStyle.current.copy(
-                            color = Color.White,
-                            textAlign = TextAlign.Center,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            lineHeight = 28.sp
-                        ),
-                        modifier = Modifier.fillMaxSize()
-                    )
 
-                    Text(
-                        text = "${150 - storyText.length} characters left",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 11.sp,
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                    )
+                            Text(
+                                text = "${150 - storyText.length} characters left",
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 11.sp,
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                            )
+                        }
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // Beautiful Color Gradient Preset Picker Row
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.Start
-                ) {
-                    Text(
-                        "रंगीन थीम चुनें (Select theme):",
-                        color = TextMuted,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                if (selectedImageUri != null) {
+                    // Photo customization interface: caption field + frame themes switching
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // Text input field for the photo caption
+                        OutlinedTextField(
+                            value = storyText,
+                            onValueChange = { if (it.length <= 100) storyText = it },
+                            placeholder = { Text("फोटो के बारे में कुछ लिखें (Type caption here)...", color = TextMuted) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextLight,
+                                unfocusedTextColor = TextLight,
+                                focusedBorderColor = AccentBlue,
+                                unfocusedBorderColor = CardSlate,
+                                focusedContainerColor = CardSlate,
+                                unfocusedContainerColor = CardSlate
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                            singleLine = true
+                        )
 
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(presets) { preset ->
-                            val isSelected = (preset == selectedPreset)
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        Brush.linearGradient(colors = getGradientForPreset(preset))
+                        // Visual unique themes switcher row
+                        Text(
+                            "अनोखा थीम फ्रेम चुनें (Select Visual Layout Frame):",
+                            color = TextMuted,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(frameThemes) { (themeKey, themeLabel) ->
+                                val isSelected = (themeKey == selectedFrameTheme)
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) AccentBlue else CardSlate)
+                                        .border(1.dp, if (isSelected) Color.White else Color.Gray.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                        .clickable { selectedFrameTheme = themeKey }
+                                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        text = themeLabel,
+                                        color = if (isSelected) DarkSlateBg else TextLight,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
                                     )
-                                    .border(
-                                        width = if (isSelected) 3.dp else 0.dp,
-                                        color = if (isSelected) TextLight else Color.Transparent,
-                                        shape = CircleShape
-                                    )
-                                    .clickable { selectedPreset = preset }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Remove photo action button
+                        Button(
+                            onClick = { selectedImageUri = null },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.15f)),
+                            modifier = Modifier.fillMaxWidth(),
+                            border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.5f))
+                        ) {
+                            Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = Color.Red)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("फोटो हटाएं (Remove Photo & Go Text)", color = Color.Red, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                    }
+                } else {
+                    // Traditional Gradient theme picker + Option to add visual image status
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            "रंगीन थीम चुनें (Select background):",
+                            color = TextMuted,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(presets) { preset ->
+                                val isSelected = (preset == selectedPreset)
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            Brush.linearGradient(colors = getGradientForPreset(preset))
+                                        )
+                                        .border(
+                                            width = if (isSelected) 3.dp else 0.dp,
+                                            color = if (isSelected) TextLight else Color.Transparent,
+                                            shape = CircleShape
+                                        )
+                                        .clickable { selectedPreset = preset }
+                                )
+                            }
+                        }
+
+                        // Premium Add Image action center
+                        Button(
+                            onClick = {
+                                photoPickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(imageVector = Icons.Default.Image, contentDescription = null, tint = DarkSlateBg)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "गैलरी से फोटो जोड़ें (Add Image Story)",
+                                color = DarkSlateBg,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
                             )
                         }
                     }
                 }
             }
         }
+    }
+}
+
+fun getCleanStoryText(storedText: String): String {
+    return when {
+        storedText.startsWith("[BG:") && storedText.contains("]") -> {
+            storedText.substring(storedText.indexOf("]") + 1)
+        }
+        storedText.startsWith("[FRAME:") && storedText.contains("]") -> {
+            storedText.substring(storedText.indexOf("]") + 1)
+        }
+        else -> storedText
     }
 }
 
@@ -580,28 +1180,40 @@ fun StoryViewerDialog(
                 }
         ) {
             if (currentStory != null) {
-                val (preset, displayedText) = remember(currentStory.text) {
-                    parseStoryContent(currentStory.text)
-                }
-
-                // Fill gradient status background
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Brush.linearGradient(colors = getGradientForPreset(preset))),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = displayedText,
-                        color = Color.White,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 32.sp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(28.dp)
+                if (!currentStory.imageUri.isNullOrEmpty()) {
+                    val (frameKey, caption) = remember(currentStory.text) {
+                        parsePhotoStory(currentStory.text)
+                    }
+                    DispatchFrameTheme(
+                        themeKey = frameKey,
+                        imageUri = currentStory.imageUri,
+                        caption = caption,
+                        modifier = Modifier.fillMaxSize()
                     )
+                } else {
+                    val (preset, displayedText) = remember(currentStory.text) {
+                        parseStoryContent(currentStory.text)
+                    }
+
+                    // Fill gradient status background
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Brush.linearGradient(colors = getGradientForPreset(preset))),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = displayedText,
+                            color = Color.White,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 32.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(28.dp)
+                        )
+                    }
                 }
             }
 
@@ -754,7 +1366,8 @@ fun StoryViewerDialog(
                         IconButton(
                             onClick = {
                                 if (replyText.trim().isNotEmpty()) {
-                                    val formattedWithStoryContext = "📲 Stories Reply: \"${parseStoryContent(currentStory.text).second}\" — $replyText"
+                                    val cleanText = getCleanStoryText(currentStory.text).ifEmpty { "Photo Status" }
+                                    val formattedWithStoryContext = "📲 Stories Reply: \"$cleanText\" — $replyText"
                                     viewModel.sendInstagramStoryReply(username, formattedWithStoryContext)
                                     replyText = ""
                                     isPaused = false
