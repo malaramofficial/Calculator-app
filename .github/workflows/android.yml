@@ -2,39 +2,51 @@ name: Android Release Build
 
 on:
   push:
-    branches: [ "main", "master" ] # Aapki branch ka naam chahe 'main' ho ya 'master', ye dono par chalega
+    branches: [ "main", "master" ]
+
   pull_request:
     branches: [ "main", "master" ]
+
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. GitHub repository se code ko clone/checkout karna
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    # 2. JDK 17 setup karna aur Gradle cache enable karna
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: gradle
+      - name: Show project structure
+        run: ls -R
 
-    # 3. Gradlew wrapper ko execute karne ki permission dena (Sabse Zaroori)
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
 
-    # 4. Calculator-app ka Release APK build karna
-    - name: Build Release APK
-      run: ./gradlew assembleRelease --stacktrace
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
-    # 5. Generated APK file ko GitHub par upload karna
-    - name: Upload APK Artifact
-      uses: actions/upload-artifact@v4
-      with:
+      - name: Build Release APK
+        run: ./gradlew assembleRelease --stacktrace --info
+
+      - name: Find APK files
+        run: find . -name "*.apk"
+
+      - name: Show build outputs
+        run: ls -R app/build/outputs || true
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Calculator-Release-APK
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error      with:
         name: Calculator-Release-APK
         # Sahi aur exact path jahan Android Gradle plugin APK save karta hai
         path: app/build/outputs/apk/release/*.apk
