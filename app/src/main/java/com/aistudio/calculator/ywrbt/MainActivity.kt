@@ -758,86 +758,100 @@ fun DirectMessagesInboxView(
             .sortedByDescending { it.second.first?.timestamp ?: 0L }
     }
 
-    if (sortedInterlocutors.isEmpty()) {
-        Column(
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Horizontal Stories Feed Bar
+        com.aistudio.calculator.ywrbt.ui.chat.StoriesBar(viewModel)
+        
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.ChatBubbleOutline,
-                contentDescription = null,
-                tint = AccentBlue.copy(alpha = 0.4f),
-                modifier = Modifier.size(64.dp)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "सुरक्षित चैट में आपका स्वागत है!",
-                color = TextLight,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-              )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "खोज डायरेक्टरी में अपने दोस्तों के असली यूजरनेम ढूंढें और सुरक्षित डायरेक्ट चैटिंग शुरू करें। यहाँ कोई भी फेक या डेमो चैट आईडी नहीं दिखाई जाती है।",
-                color = TextMuted,
-                fontSize = 13.sp,
-                textAlign = TextAlign.Center,
-                lineHeight = 18.sp
-            )
-            Spacer(modifier = Modifier.height(20.dp))
-            Button(
-                onClick = onNavigateSearch,
-                colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
+                .fillMaxWidth()
+                .height(0.5.dp)
+                .background(Color.Gray.copy(alpha = 0.25f))
+        )
+
+        if (sortedInterlocutors.isEmpty()) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                Text("दोस्त की आईडी जोड़ें (Find ID)", color = DarkSlateBg, fontWeight = FontWeight.Bold)
-            }
-        }
-    } else {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 48.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            item {
-                BannerAd()
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Icon(
+                    imageVector = Icons.Default.ChatBubbleOutline,
+                    contentDescription = null,
+                    tint = AccentBlue.copy(alpha = 0.4f),
+                    modifier = Modifier.size(64.dp)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "सुरक्षित चैट में आपका स्वागत है!",
+                    color = TextLight,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                  )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "खोज डायरेक्टरी में अपने दोस्तों के असली यूजरनेम ढूंढें और सुरक्षित डायरेक्ट चैटिंग शुरू करें। यहाँ कोई भी फेक या डेमो चैट आईडी नहीं दिखाई जाती है।",
+                    color = TextMuted,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 18.sp
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+                Button(
+                    onClick = onNavigateSearch,
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
                 ) {
-                    Text(
-                        text = "Messages",
-                        color = TextLight,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "${sortedInterlocutors.size} Available Devices",
-                        color = TextMuted,
-                        fontSize = 11.sp
-                    )
+                    Text("दोस्त की आईडी जोड़ें (Find ID)", color = DarkSlateBg, fontWeight = FontWeight.Bold)
                 }
             }
-
-            items(sortedInterlocutors) { (profile, meta) ->
-                val (lastMsg, unreadCount) = meta
-                InboxItemCard(
-                    profile = profile,
-                    lastMessage = lastMsg,
-                    unreadCount = unreadCount,
-                    onAvatarClick = { viewModel.showProfileBadge(profile) }
-                ) {
-                    val activity = context.findActivity()
-                    if (activity != null) {
-                        AdsManager.showInterstitial(activity)
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(top = 16.dp, bottom = 48.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                item {
+                    BannerAd()
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Messages",
+                            color = TextLight,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${sortedInterlocutors.size} Available Devices",
+                            color = TextMuted,
+                            fontSize = 11.sp
+                        )
                     }
-                    viewModel.setActiveRecipient(profile)
+                }
+    
+                items(sortedInterlocutors) { (profile, meta) ->
+                    val (lastMsg, unreadCount) = meta
+                    InboxItemCard(
+                        profile = profile,
+                        lastMessage = lastMsg,
+                        unreadCount = unreadCount,
+                        onAvatarClick = { viewModel.showProfileBadge(profile) }
+                    ) {
+                        val activity = context.findActivity()
+                        if (activity != null) {
+                            AdsManager.showInterstitial(activity)
+                        }
+                        viewModel.setActiveRecipient(profile)
+                    }
                 }
             }
         }

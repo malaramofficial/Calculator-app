@@ -449,6 +449,18 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
         }
         
         startAutoDeleteCleanupJob()
+
+        // Track and load all cached stories
+        viewModelScope.launch {
+            repository.allStories.collect { stories ->
+                _storiesList.value = stories
+            }
+        }
+        // Purge expired stories
+        viewModelScope.launch {
+            val cutoff = System.currentTimeMillis() - 86400000L
+            repository.deleteExpiredStories(cutoff)
+        }
     }
 
     private suspend fun cleanupDefaultProfiles() {
@@ -1765,6 +1777,92 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
             if (localExist == null) {
                 repository.insertProfile(profile.copy(isCreatedByLocalUser = false))
             }
+        }
+    }
+
+    // --- Stories / Status Functionality ---
+    private val _storiesList = MutableStateFlow<List<UserStory>>(emptyList())
+    val storiesList: StateFlow<List<UserStory>> = _storiesList.asStateFlow()
+
+    fun postStory(text: String, imageUri: String? = null) {
+        viewModelScope.launch {
+            val userProfile = profilesList.value.find { it.username == currentUsername.value }
+            val story = UserStory(
+                username = currentUsername.value,
+                fullName = userProfile?.fullName ?: currentUsername.value,
+                text = text,
+                avatarColorHex = userProfile?.avatarColorHex ?: "#2196F3",
+                imageUri = imageUri,
+                timestamp = System.currentTimeMillis()
+            )
+            repository.insertStory(story)
+        }
+    }
+
+    fun deleteStory(storyId: Long) {
+        viewModelScope.launch {
+            repository.deleteStory(storyId)
+        }
+    }
+
+    fun clearExpiredStories() {
+        viewModelScope.launch {
+            val cutoff = System.currentTimeMillis() - 86400000L
+            repository.deleteExpiredStories(cutoff)
+        }
+    }
+
+    // --- Persistent Seen/Read Story Tracker ---
+    private val _seenStoryIds = MutableStateFlow(
+        prefs.getStringSet("seen_story_ids", emptySet())?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
+    )
+    val seenStoryIds: StateFlow<Set<Long>> = _seenStoryIds.asStateFlow()
+
+    fun markStoryAsSeen(id: Long) {
+        val current = _seenStoryIds.value.toMutableSet()
+        if (current.add(id)) {
+            _seenStoryIds.value = current
+            prefs.edit().putStringSet("seen_story_ids", current.map { it.toString() }.toSet()).apply()
+        }
+    }
+
+    fun sendInstagramStoryReply(recipient: String, replyText: String) {
+        viewModelScope.launch {
+            val outgoingMsg = ChatMessage(
+                sender = _currentUsername.value,
+                recipient = recipient,
+                text = replyText,
+                isSeen = false
+            )
+            repository.insertMessage(outgoingMsg)
+            
+            // If recipient is virtual, send auto-reply after a realistic typing delay
+            if (isVirtualUser(recipient)) {
+                delay(1200)
+                val autoMsg = ChatMessage(
+                    sender = recipient,
+                    recipient = _currentUsername.value,
+                    text = "स्टोरी पसंद करने के लिए शुक्रिया! 😊❤️",
+                    isSeen = true
+                )
+                repository.insertMessage(autoMsg)
+            }
+        }
+    }
+
+    fun postStoryFromProfile(profileUsername: String, text: String) {
+        viewModelScope.launch {
+            val prof = repository.getProfile(profileUsername)
+            val defaultColor = listOf("#FE2C55", "#FF007F", "#00F260", "#FFC300").random()
+            val story = UserStory(
+                username = profileUsername,
+                fullName = prof?.fullName ?: profileUsername,
+                text = text,
+                avatarColorHex = prof?.avatarColorHex ?: defaultColor,
+                imageUri = null,
+                timestamp = System.currentTimeMillis() - (1..12).random() * 3600000L
+            )
+            repository.insertStory(story)
         }
     }
 }

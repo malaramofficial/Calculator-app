@@ -16,6 +16,17 @@ data class ChatProfile(
     val lastActive: Long = 0L
 )
 
+@Entity(tableName = "user_stories")
+data class UserStory(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val username: String,
+    val fullName: String,
+    val text: String,
+    val avatarColorHex: String,
+    val imageUri: String? = null,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
 @Entity(tableName = "chat_messages")
 data class ChatMessage(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
@@ -48,6 +59,18 @@ interface SecretDao {
     @Delete
     suspend fun deleteProfile(profile: ChatProfile)
 
+    @Query("SELECT * FROM user_stories ORDER BY timestamp DESC")
+    fun getAllStories(): Flow<List<UserStory>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStory(story: UserStory)
+
+    @Query("DELETE FROM user_stories WHERE id = :id")
+    suspend fun deleteStory(id: Long)
+
+    @Query("DELETE FROM user_stories WHERE timestamp < :cutoff")
+    suspend fun deleteExpiredStories(cutoff: Long)
+
     @Query("SELECT * FROM chat_messages WHERE (sender = :user1 AND recipient = :user2) OR (sender = :user2 AND recipient = :user1) ORDER BY timestamp ASC")
     fun getConversation(user1: String, user2: String): Flow<List<ChatMessage>>
 
@@ -71,8 +94,8 @@ interface SecretDao {
 }
 
 @Database(
-    entities = [ChatProfile::class, ChatMessage::class],
-    version = 9, // Destructive migration will rebuild schema seamlessly
+    entities = [ChatProfile::class, ChatMessage::class, UserStory::class],
+    version = 10, // Destructive migration will rebuild schema seamlessly
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -101,6 +124,7 @@ abstract class AppDatabase : RoomDatabase() {
 class VaultRepository(private val dao: SecretDao) {
     val allProfiles: Flow<List<ChatProfile>> = dao.getAllProfiles()
     val allMessages: Flow<List<ChatMessage>> = dao.getAllMessages()
+    val allStories: Flow<List<UserStory>> = dao.getAllStories()
 
     fun getConversation(user1: String, user2: String): Flow<List<ChatMessage>> =
         dao.getConversation(user1, user2)
@@ -113,6 +137,10 @@ class VaultRepository(private val dao: SecretDao) {
 
     suspend fun insertProfile(profile: ChatProfile) = dao.insertProfile(profile)
     suspend fun deleteProfile(profile: ChatProfile) = dao.deleteProfile(profile)
+
+    suspend fun insertStory(story: UserStory) = dao.insertStory(story)
+    suspend fun deleteStory(id: Long) = dao.deleteStory(id)
+    suspend fun deleteExpiredStories(cutoff: Long) = dao.deleteExpiredStories(cutoff)
 
     suspend fun insertMessage(message: ChatMessage) = dao.insertMessage(message)
     suspend fun clearConversation(user1: String, user2: String) = dao.clearConversation(user1, user2)
