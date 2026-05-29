@@ -1,54 +1,3 @@
-# समस्या मिल गई! 🔍
-
-आपके **Release APK build में मुख्य समस्या** यह है:
-
-## ❌ मुख्य समस्या
-
-**`gradlew` फ़ाइल आपके repository में नहीं है!**
-
-Workflow को यह error मिलता है:
-```
-chmod: cannot access './gradlew': No such file or directory
-```
-
-## क्यों हो रहा है?
-
-Android project में **तीन ज़रूरी फ़ाइलें** होनी चाहिए जो आपके पास नहीं हैं:
-
-1. **`gradlew`** - Linux/Mac के लिए Gradle wrapper script
-2. **`gradlew.bat`** - Windows के लिए script
-3. **`gradle/`** folder - gradle config files के साथ
-
-ये फ़ाइलें आपके repository root में होनी चाहिए।
-
-## ✅ समाधान
-
-### विकल्प 1: अपना Android Project फिर से Create करें
-अपने project को proper Android Studio template से initialize करें:
-
-```bash
-android create app --name Calculator --package com.calculator
-```
-
-### विकल्प 2: Manual Setup
-अगर आपके पास पहले से project है, तो:
-
-1. **Gradle wrapper download करें:**
-```bash
-gradle wrapper
-```
-
-2. फिर push करें:
-```bash
-git add gradlew gradlew.bat gradle/
-git commit -m "Add Gradle wrapper files"
-git push origin main
-```
-
-### विकल्प 3: सीधे Gradle से build करें
-Workflow को update करें:
-
-```yaml
 name: Android Release Build
 
 on:
@@ -70,16 +19,14 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
       - name: Build APK
-        run: gradle assembleRelease  # यह sीधे gradle use करता है
+        run: ./gradlew assembleRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
           path: app/build/outputs/apk/release/*.apk
-```
-
----
-
-**सबसे बेहतर तरीका:** विकल्प 1 - अपना project को proper Android Studio से create करें ताकि सभी ज़रूरी files automatically add हो जाएँ। 🎯
