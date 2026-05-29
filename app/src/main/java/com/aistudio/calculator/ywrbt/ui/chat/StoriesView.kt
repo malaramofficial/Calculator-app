@@ -209,6 +209,7 @@ fun NeonGlassFrame(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(18.dp)
+                .padding(bottom = 80.dp)
                 .border(
                     BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
                     RoundedCornerShape(16.dp)
@@ -263,7 +264,9 @@ fun PaperJournalFrame(
             }
     ) {
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 80.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
@@ -370,7 +373,8 @@ fun AmbientAuroraFrame(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxWidth(0.88f)
-                .padding(16.dp),
+                .padding(16.dp)
+                .padding(bottom = 80.dp),
             verticalArrangement = Arrangement.Center
         ) {
             Box(
@@ -486,7 +490,8 @@ fun CinemaWideFrame(
                 .fillMaxWidth()
                 .weight(0.5f)
                 .background(Color.Black)
-                .padding(horizontal = 24.dp, vertical = 12.dp),
+                .padding(horizontal = 24.dp, vertical = 12.dp)
+                .padding(bottom = 80.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -528,9 +533,9 @@ fun StoriesBar(
     val profiles by viewModel.profilesList.collectAsState()
     val currentUsername by viewModel.currentUsername.collectAsState()
     val seenStoryIds by viewModel.seenStoryIds.collectAsState()
+    val viewingUsername by viewModel.activeViewingStoryUsername.collectAsState()
 
     var showPostDialog by remember { mutableStateOf(false) }
-    var viewingUsername by remember { mutableStateOf<String?>(null) }
 
     // Auto-populate offline sample stories to keep UI looking active if empty!
     LaunchedEffect(stories.size) {
@@ -555,202 +560,327 @@ fun StoriesBar(
         stories.groupBy { it.username }
     }
 
-    // Identify current user's profile info
-    val currentUserProfile = remember(profiles, currentUsername) {
-        profiles.find { it.username == currentUsername }
-    }
-
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(vertical = 12.dp)
     ) {
+        // Netflix-style header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE50914)) // Netflix Red dot
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Trending Stories Feed",
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
+                )
+            }
+            Text(
+                text = "Show All",
+                color = AccentBlue,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.clickable {
+                    // Quick refresh / fetch global profiles & stories
+                    viewModel.fetchGlobalProfiles()
+                }
+            )
+        }
+
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // "Your Story" profile item
+            // "Your Story" Netflix poster item
             item {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.width(68.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(60.dp)
-                            .clickable(
-                                onClick = {
-                                    val myStories = activeStoriesGrouped[currentUsername]
-                                    if (myStories != null && myStories.isNotEmpty()) {
-                                        viewingUsername = currentUsername
-                                    } else {
-                                        showPostDialog = true
-                                    }
-                                }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // Drawing ring around the avatar
-                        val myStories = activeStoriesGrouped[currentUsername] ?: emptyList()
-                        val hasUnseenMyStories = myStories.any { it.id !in seenStoryIds }
+                val myStories = activeStoriesGrouped[currentUsername] ?: emptyList()
+                val latestMyStory = myStories.lastOrNull()
 
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .drawBehind {
-                                    if (myStories.isNotEmpty()) {
-                                        val borderBrush = if (hasUnseenMyStories) {
-                                            Brush.linearGradient(
-                                                listOf(
-                                                    Color(0xFFFE0879),
-                                                    Color(0xFFFF5225),
-                                                    Color(0xFFFFF135)
-                                                )
-                                            )
-                                        } else {
-                                            Brush.linearGradient(listOf(Color.Gray.copy(alpha = 0.5f), Color.Gray.copy(alpha = 0.5f)))
-                                        }
-                                        drawCircle(
-                                            brush = borderBrush,
-                                            style = Stroke(width = 2.dp.toPx())
-                                        )
-                                    }
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            // Avatar circle representing Current User
-                            val hexStr = currentUserProfile?.avatarColorHex ?: "#FF5722"
-                            val parsedColor = remember(hexStr) {
-                                try { Color(android.graphics.Color.parseColor(hexStr)) } catch (e: Exception) { Color(0xFFFE5225) }
+                Box(
+                    modifier = Modifier
+                        .width(110.dp)
+                        .height(165.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CardSlate)
+                        .border(
+                            width = 1.5.dp,
+                            color = if (myStories.isNotEmpty()) Color(0xFFE50914) else Color.Gray.copy(alpha = 0.3f),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        .clickable {
+                            if (myStories.isNotEmpty()) {
+                                viewModel.activeViewingStoryUsername.value = currentUsername
+                            } else {
+                                showPostDialog = true
                             }
+                        }
+                ) {
+                    if (latestMyStory != null) {
+                        // Show my story background
+                        if (!latestMyStory.imageUri.isNullOrEmpty()) {
+                            AsyncImage(
+                                model = latestMyStory.imageUri,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            val (preset, displayedText) = parseStoryContent(latestMyStory.text)
                             Box(
                                 modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .background(parsedColor),
+                                    .fillMaxSize()
+                                    .background(Brush.linearGradient(colors = getGradientForPreset(preset))),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = (currentUserProfile?.fullName ?: "You").take(1).uppercase(),
+                                    text = displayedText,
                                     color = Color.White,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(6.dp),
+                                    maxLines = 4,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
-
-                        // Cute mini rounded "+" Badge overlaid on bottom right
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .offset(x = 1.dp, y = 1.dp)
-                                .size(20.dp)
-                                .clip(CircleShape)
-                                .background(AccentBlue)
-                                .border(1.5.dp, DarkSlateBg, CircleShape)
-                                .clickable { showPostDialog = true },
-                            contentAlignment = Alignment.Center
+                    } else {
+                        // Empty Your Story layout
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "Add Story",
-                                tint = DarkSlateBg,
-                                modifier = Modifier.size(12.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFE50914).copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    tint = Color(0xFFE50914),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Your Story",
-                        color = TextLight,
-                        fontSize = 11.sp,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                    // Soft dark gradient overlay
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f)),
+                                    startY = 180f
+                                )
+                            )
                     )
+
+                    // Text overlay at the bottom
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(8.dp)
+                    ) {
+                        Text(
+                            text = "Your Story",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (myStories.isNotEmpty()) "Tap to View" else "Create Now",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 9.sp
+                        )
+                    }
+
+                    // Little red "N" or Play badge in top left corner (cinematic theme)
+                    Box(
+                        modifier = Modifier
+                            .padding(8.dp)
+                            .size(16.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(Color(0xFFE50914)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "N",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
                 }
             }
 
-            // Other users' stories
+            // Other users' Netflix story cards
             val otherStoryAuthors = activeStoriesGrouped.keys.filter { it != currentUsername }
             items(otherStoryAuthors) { authorUsername ->
                 val authorStories = activeStoriesGrouped[authorUsername] ?: emptyList()
                 if (authorStories.isNotEmpty()) {
                     val authorProfile = profiles.find { it.username == authorUsername }
                     val hasUnseen = authorStories.any { it.id !in seenStoryIds }
+                    val latestStory = authorStories.lastOrNull() ?: authorStories[0]
 
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
+                    Box(
                         modifier = Modifier
-                            .width(68.dp)
-                            .clickable { viewingUsername = authorUsername }
+                            .width(110.dp)
+                            .height(165.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CardSlate)
+                            .border(
+                                width = 1.5.dp,
+                                color = if (hasUnseen) Color(0xFFE50914) else Color.Gray.copy(alpha = 0.3f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .clickable {
+                                viewModel.activeViewingStoryUsername.value = authorUsername
+                            }
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(60.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
+                        // Poster media representation
+                        if (!latestStory.imageUri.isNullOrEmpty()) {
+                            AsyncImage(
+                                model = latestStory.imageUri,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            val (preset, displayedText) = parseStoryContent(latestStory.text)
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .drawBehind {
-                                        val ringBrush = if (hasUnseen) {
-                                            Brush.linearGradient(
-                                                listOf(
-                                                    Color(0xFFFE0879),
-                                                    Color(0xFFFF5225),
-                                                    Color(0xFFFFF135)
-                                                )
-                                            )
-                                        } else {
-                                            Brush.linearGradient(
-                                                listOf(
-                                                    Color.Gray.copy(alpha = 0.4f),
-                                                    Color.Gray.copy(alpha = 0.4f)
-                                                )
-                                            )
-                                        }
-                                        drawCircle(
-                                            brush = ringBrush,
-                                            style = Stroke(width = 2.dp.toPx())
-                                        )
-                                    },
+                                    .background(Brush.linearGradient(colors = getGradientForPreset(preset))),
                                 contentAlignment = Alignment.Center
                             ) {
-                                // Background Colored Initials Avatar
-                                val hexStr = authorProfile?.avatarColorHex ?: "#2196F3"
-                                val parsedColor = remember(hexStr) {
-                                    try { Color(android.graphics.Color.parseColor(hexStr)) } catch (e: Exception) { Color(0xFF2196F3) }
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(CircleShape)
-                                        .background(parsedColor),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = (authorProfile?.fullName ?: authorUsername).take(1).uppercase(),
-                                        color = Color.White,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
+                                Text(
+                                    text = displayedText,
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(6.dp),
+                                    maxLines = 4,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = authorProfile?.fullName ?: authorUsername,
-                            color = if (hasUnseen) TextLight else TextMuted,
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center
+                        // Soft dark gradient overlay
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f)),
+                                        startY = 180f
+                                    )
+                                )
                         )
+
+                        // Central Play Indicator overlay if there's unseen news
+                        if (hasUnseen) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.Center)
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.6f))
+                                    .border(0.5.dp, Color.White.copy(alpha = 0.5f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = "Play",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        // Red horizontal Netflix-style timeline bar at the very bottom
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .fillMaxWidth()
+                                .height(3.dp)
+                                .background(
+                                    if (hasUnseen) Color(0xFFE50914) else Color.Gray.copy(alpha = 0.5f)
+                                )
+                        )
+
+                        // Top-left user name pill or avatar initials
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val hexStr = authorProfile?.avatarColorHex ?: "#2196F3"
+                            val parsedColor = remember(hexStr) {
+                                try { Color(android.graphics.Color.parseColor(hexStr)) } catch (e: Exception) { Color(0xFF2196F3) }
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clip(CircleShape)
+                                    .background(parsedColor),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = (authorProfile?.fullName ?: authorUsername).take(1).uppercase(),
+                                    color = Color.White,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        // Name overlay at the bottom
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(horizontal = 8.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = authorProfile?.fullName ?: authorUsername,
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            val timeAgo = android.text.format.DateUtils.getRelativeTimeSpanString(latestStory.timestamp).toString()
+                            Text(
+                                text = timeAgo,
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 8.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
@@ -777,10 +907,10 @@ fun StoriesBar(
                 stories = targetStories,
                 viewModel = viewModel,
                 isOwnStories = (viewingUsername == currentUsername),
-                onDismiss = { viewingUsername = null }
+                onDismiss = { viewModel.activeViewingStoryUsername.value = null }
             )
         } else {
-            viewingUsername = null
+            viewModel.activeViewingStoryUsername.value = null
         }
     }
 }
@@ -799,6 +929,7 @@ fun PostStoryDialog(
     // Image integration states
     var selectedImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var selectedFrameTheme by remember { mutableStateOf("polaroid") }
+    var isPosting by remember { mutableStateOf(false) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
@@ -846,22 +977,27 @@ fun PostStoryDialog(
                     actions = {
                         TextButton(
                             onClick = {
-                                if (selectedImageUri != null) {
-                                    val clonedPath = saveStoryImageToInternal(context, selectedImageUri!!)
-                                    if (clonedPath != null) {
-                                        val payload = "[FRAME:$selectedFrameTheme]${storyText.trim()}"
-                                        onPost(payload, clonedPath)
+                                if (!isPosting) {
+                                    isPosting = true
+                                    if (selectedImageUri != null) {
+                                        val clonedPath = saveStoryImageToInternal(context, selectedImageUri!!)
+                                        if (clonedPath != null) {
+                                            val payload = "[FRAME:$selectedFrameTheme]${storyText.trim()}"
+                                            onPost(payload, clonedPath)
+                                        } else {
+                                            isPosting = false
+                                        }
+                                    } else {
+                                        val formattedPayload = "[BG:$selectedPreset]${storyText.trim()}"
+                                        onPost(formattedPayload, null)
                                     }
-                                } else {
-                                    val formattedPayload = "[BG:$selectedPreset]${storyText.trim()}"
-                                    onPost(formattedPayload, null)
                                 }
                             },
-                            enabled = isPostButtonEnabled
+                            enabled = isPostButtonEnabled && !isPosting
                         ) {
                             Text(
                                 "Post (लगाएं)",
-                                color = if (isPostButtonEnabled) AccentBlue else TextMuted,
+                                color = if (isPostButtonEnabled && !isPosting) AccentBlue else TextMuted,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp
                             )
@@ -1184,12 +1320,19 @@ fun StoryViewerDialog(
                     val (frameKey, caption) = remember(currentStory.text) {
                         parsePhotoStory(currentStory.text)
                     }
-                    DispatchFrameTheme(
-                        themeKey = frameKey,
-                        imageUri = currentStory.imageUri,
-                        caption = caption,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(bottom = 120.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        DispatchFrameTheme(
+                            themeKey = frameKey,
+                            imageUri = currentStory.imageUri,
+                            caption = caption,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 } else {
                     val (preset, displayedText) = remember(currentStory.text) {
                         parseStoryContent(currentStory.text)
@@ -1212,6 +1355,7 @@ fun StoryViewerDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(28.dp)
+                                .padding(bottom = 120.dp)
                         )
                     }
                 }

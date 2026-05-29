@@ -75,6 +75,13 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
     val activeProfileBadge: StateFlow<ChatProfile?> = _activeProfileBadge.asStateFlow()
 
     fun showProfileBadge(profile: ChatProfile?) {
+        if (profile != null) {
+            val userStories = storiesList.value.filter { it.username == profile.username }
+            if (userStories.isNotEmpty()) {
+                activeViewingStoryUsername.value = profile.username
+                return
+            }
+        }
         _activeProfileBadge.value = profile
     }
 
@@ -1577,7 +1584,66 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    private var globalStoriesListener: com.google.firebase.firestore.ListenerRegistration? = null
+
+    fun fetchGlobalStories() {
+        val firestore = db
+        if (firestore != null && isFirebaseEnabled) {
+            globalStoriesListener?.remove()
+            val cutoff = System.currentTimeMillis() - 86400000L // last 24 hours
+            globalStoriesListener = firestore.collection("stories")
+                .whereGreaterThan("timestamp", cutoff)
+                .addSnapshotListener { snapshot, e ->
+                    if (e != null) {
+                        android.util.Log.e("CalculatorViewModel", "Listen stories failed: ${e.message}")
+                        return@addSnapshotListener
+                    }
+                    if (snapshot != null) {
+                        val list = mutableListOf<UserStory>()
+                        for (doc in snapshot.documents) {
+                            var idVal = doc.getLong("id") ?: 0L
+                            if (idVal == 0L) {
+                                idVal = Math.abs(doc.id.hashCode().toLong())
+                            }
+                            if (idVal == 0L) idVal = 1L
+                            val username = doc.getString("username") ?: ""
+                            val fullName = doc.getString("fullName") ?: username
+                            val text = doc.getString("text") ?: ""
+                            val avatarColorHex = doc.getString("avatarColorHex") ?: "#38BDF8"
+                            val imageUri = doc.getString("imageUri")
+                            val timestampVal = doc.getLong("timestamp") ?: System.currentTimeMillis()
+                            
+                            if (username.isNotEmpty()) {
+                                list.add(
+                                    UserStory(
+                                        id = idVal,
+                                        username = username,
+                                        fullName = fullName,
+                                        text = text,
+                                        avatarColorHex = avatarColorHex,
+                                        imageUri = imageUri,
+                                        timestamp = timestampVal
+                                    )
+                                )
+                            }
+                        }
+                        
+                        viewModelScope.launch(Dispatchers.IO) {
+                            try {
+                                for (story in list) {
+                                    repository.insertStory(story)
+                                }
+                            } catch (writeErr: Exception) {
+                                android.util.Log.e("CalculatorViewModel", "Failed to cache global stories: ${writeErr.message}")
+                            }
+                        }
+                    }
+                }
+        }
+    }
+
     fun fetchGlobalProfiles() {
+        fetchGlobalStories()
         val firestore = db
         if (firestore != null && isFirebaseEnabled) {
             firestore.collection("profiles")
@@ -1781,21 +1847,60 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     // --- Stories / Status Functionality ---
+    val activeViewingStoryUsername = MutableStateFlow<String?>(null)
     private val _storiesList = MutableStateFlow<List<UserStory>>(emptyList())
     val storiesList: StateFlow<List<UserStory>> = _storiesList.asStateFlow()
 
     fun postStory(text: String, imageUri: String? = null) {
         viewModelScope.launch {
             val userProfile = profilesList.value.find { it.username == currentUsername.value }
+            
+            // 1. Sync file to Cloudinary if it is a local device path
+            var cloudinaryUrl: String? = null
+            if (!imageUri.isNullOrEmpty()) {
+                if (imageUri.startsWith("http")) {
+                    cloudinaryUrl = imageUri
+                } else {
+                    val file = java.io.File(imageUri)
+                    if (file.exists()) {
+                        val fileUri = android.net.Uri.fromFile(file).toString()
+                        cloudinaryUrl = uploadToCloudinary(fileUri)
+                    } else {
+                        cloudinaryUrl = imageUri
+                    }
+                }
+            }
+
+            val generatedId = Math.abs(System.currentTimeMillis() + (1..1000).random().toLong()).coerceAtLeast(1L)
             val story = UserStory(
+                id = generatedId,
                 username = currentUsername.value,
                 fullName = userProfile?.fullName ?: currentUsername.value,
                 text = text,
                 avatarColorHex = userProfile?.avatarColorHex ?: "#2196F3",
-                imageUri = imageUri,
+                imageUri = cloudinaryUrl,
                 timestamp = System.currentTimeMillis()
             )
             repository.insertStory(story)
+
+            // 2. Sync to Firestore Cloud Database so everyone can see it
+            val firestore = db
+            if (firestore != null && isFirebaseEnabled) {
+                val storyDocId = "story_${story.username}_${story.timestamp}"
+                val storyMap = hashMapOf(
+                    "id" to story.id,
+                    "username" to story.username,
+                    "fullName" to story.fullName,
+                    "text" to story.text,
+                    "avatarColorHex" to story.avatarColorHex,
+                    "imageUri" to story.imageUri,
+                    "timestamp" to story.timestamp
+                )
+                firestore.collection("stories").document(storyDocId).set(storyMap)
+                    .addOnFailureListener { e ->
+                        android.util.Log.e("CalculatorViewModel", "Failed to upload story to Firestore: ${e.message}")
+                    }
+            }
         }
     }
 
@@ -1854,7 +1959,9 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             val prof = repository.getProfile(profileUsername)
             val defaultColor = listOf("#FE2C55", "#FF007F", "#00F260", "#FFC300").random()
+            val generatedId = Math.abs(System.currentTimeMillis() + (1..10000).random().toLong()).coerceAtLeast(1L)
             val story = UserStory(
+                id = generatedId,
                 username = profileUsername,
                 fullName = prof?.fullName ?: profileUsername,
                 text = text,

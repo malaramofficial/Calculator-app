@@ -112,6 +112,126 @@ fun VaultApp(calcViewModel: CalculatorViewModel = viewModel()) {
     }
 }
 
+@Composable
+fun TactileCalculatorButton(
+    text: String,
+    backgroundColor: Color,
+    contentColor: Color,
+    onPress: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "press_scale"
+    )
+
+    Box(
+        modifier = modifier
+            .scale(scale)
+            .aspectRatio(1.2f)
+            .clip(RoundedCornerShape(35))
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        backgroundColor,
+                        backgroundColor.copy(alpha = 0.85f)
+                    )
+                )
+            )
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        isPressed = true
+                        tryAwaitRelease()
+                        isPressed = false
+                    },
+                    onTap = { onPress() }
+                )
+            }
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(35)
+            )
+            .testTag("btn_$text"),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = contentColor,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+fun TactileZeroButton(
+    viewModel: CalculatorViewModel,
+    backgroundColor: Color,
+    contentColor: Color,
+    onLongPressTrigger: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "press_scale_zero"
+    )
+
+    val coroutineScope = rememberCoroutineScope()
+    var holdJob by remember { mutableStateOf<Job?>(null) }
+
+    Box(
+        modifier = modifier
+            .scale(scale)
+            .aspectRatio(1.2f)
+            .clip(RoundedCornerShape(35))
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        backgroundColor,
+                        backgroundColor.copy(alpha = 0.85f)
+                    )
+                )
+            )
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        isPressed = true
+                        holdJob = coroutineScope.launch {
+                            delay(3000)
+                            onLongPressTrigger()
+                        }
+                        tryAwaitRelease()
+                        isPressed = false
+                        holdJob?.cancel()
+                    },
+                    onTap = {
+                        viewModel.onButtonPress("0")
+                    }
+                )
+            }
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(35)
+            )
+            .testTag("btn_0"),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "0",
+            color = contentColor,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
 // ================= COLD STEALTH LOCK SCREEN (Normal Calculator) =================
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -122,45 +242,73 @@ fun CalculatorLockScreen(viewModel: CalculatorViewModel) {
     val savedFormula by viewModel.passcodeFormula.collectAsState()
 
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkSlateBg)
-            .padding(16.dp),
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(Color(0xFF1E293B), Color(0xFF0F172A))
+                )
+            )
+            .padding(20.dp),
         verticalArrangement = Arrangement.Bottom
     ) {
         // High visibility custom banner ad at the top of the calculator
         BannerAd(modifier = Modifier.padding(bottom = 12.dp))
 
-        // Output Displays
+        // Output Display Pane (Sleek Glassmorphic Console feel)
         Box(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .padding(bottom = 20.dp, top = 8.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color.Black.copy(alpha = 0.35f))
+                .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(24.dp))
+                .padding(24.dp),
             contentAlignment = Alignment.BottomEnd
         ) {
             Column(
                 horizontalAlignment = Alignment.End,
                 modifier = Modifier.fillMaxWidth()
             ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "SOLAR ENGINE PRO",
+                        color = Color.White.copy(alpha = 0.25f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(width = 32.dp, height = 5.dp)
+                            .clip(RoundedCornerShape(1.5.dp))
+                            .background(Color(0xFFFF8B3D).copy(alpha = 0.35f))
+                    )
+                }
+
                 if (helperText.isNotEmpty()) {
                     Text(
                         text = helperText,
-                        color = TextMuted,
-                        fontSize = 15.sp,
+                        color = TextMuted.copy(alpha = 0.8f),
+                        fontSize = 16.sp,
                         textAlign = TextAlign.End,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 6.dp)
+                            .padding(bottom = 4.dp)
                     )
                 }
 
                 Text(
                     text = displayText.ifEmpty { "0" },
-                    color = TextLight,
-                    style = Typography.displayMedium,
+                    color = Color.White,
+                    style = MaterialTheme.typography.displayMedium,
                     textAlign = TextAlign.End,
                     maxLines = 2,
                     modifier = Modifier
@@ -169,8 +317,6 @@ fun CalculatorLockScreen(viewModel: CalculatorViewModel) {
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
 
         // Grid Design (Standard Calculator)
         val buttons = listOf(
@@ -191,76 +337,41 @@ fun CalculatorLockScreen(viewModel: CalculatorViewModel) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     row.forEach { buttonText ->
-                        // Detect 5-second long press specifically on "0"
+                        val isOperator = buttonText in listOf("÷", "×", "-", "+", "=")
+                        val isClear = buttonText in listOf("C", "⌫")
+
+                        val bgButtonColor = when {
+                            buttonText == "=" -> AccentRose
+                            isOperator -> AccentBlue
+                            isClear -> ButtonSlate.copy(alpha = 0.5f)
+                            else -> ButtonSlate
+                        }
+
+                        val contentColor = when {
+                            buttonText == "=" -> TextLight
+                            isOperator -> DarkSlateBg
+                            else -> TextLight
+                        }
+
                         if (buttonText == "0") {
-                            var holdJob by remember { mutableStateOf<Job?>(null) }
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .aspectRatio(1.2f)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(ButtonSlate)
-                                    .pointerInput(Unit) {
-                                        detectTapGestures(
-                                            onPress = {
-                                                // Start holding job
-                                                holdJob = coroutineScope.launch {
-                                                    delay(3000) // Trigger after 3 seconds of continuous holding
-                                                    viewModel.openPasscodeSetup()
-                                                    Toast.makeText(context, "Passcode Setup Opened", Toast.LENGTH_SHORT).show()
-                                                }
-                                                tryAwaitRelease()
-                                                holdJob?.cancel()
-                                            },
-                                            onTap = {
-                                                viewModel.onButtonPress("0")
-                                            }
-                                        )
-                                    }
-                                    .testTag("btn_0"),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "0",
-                                    color = TextLight,
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                            TactileZeroButton(
+                                viewModel = viewModel,
+                                backgroundColor = bgButtonColor,
+                                contentColor = contentColor,
+                                onLongPressTrigger = {
+                                    viewModel.openPasscodeSetup()
+                                    Toast.makeText(context, "Passcode Setup Opened", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
                         } else {
-                            val isOperator = buttonText in listOf("÷", "×", "-", "+", "=")
-                            val isClear = buttonText in listOf("C", "⌫")
-
-                            val bgButtonColor = when {
-                                buttonText == "=" -> AccentRose
-                                isOperator -> AccentBlue
-                                isClear -> ButtonSlate.copy(alpha = 0.5f)
-                                else -> ButtonSlate
-                            }
-
-                            val contentColor = when {
-                                buttonText == "=" -> TextLight
-                                isOperator -> DarkSlateBg
-                                else -> TextLight
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .aspectRatio(1.2f)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(bgButtonColor)
-                                    .clickable { viewModel.onButtonPress(buttonText) }
-                                    .testTag("btn_$buttonText"),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = buttonText,
-                                    color = contentColor,
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                            TactileCalculatorButton(
+                                text = buttonText,
+                                backgroundColor = bgButtonColor,
+                                contentColor = contentColor,
+                                onPress = { viewModel.onButtonPress(buttonText) },
+                                modifier = Modifier.weight(1f)
+                            )
                         }
                     }
                 }
@@ -887,9 +998,13 @@ fun InboxItemCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = CardSlate),
-        shape = RoundedCornerShape(16.dp),
-        border = if (isOwner) androidx.compose.foundation.BorderStroke(1.5.dp, androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFFFCD34D), Color(0xFFF59E0B), Color(0xFFD97706)))) else null
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
+        shape = RoundedCornerShape(20.dp),
+        border = if (isOwner) {
+            androidx.compose.foundation.BorderStroke(1.5.dp, androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFFFBBF24), Color(0xFFF59E0B), Color(0xFFD97706))))
+        } else {
+            androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
+        }
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
@@ -903,17 +1018,18 @@ fun InboxItemCard(
                 Box(
                     modifier = if (isOwner) {
                         Modifier
-                            .size(46.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
                             .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFFFBBF24), Color(0xFFF59E0B), Color(0xFFD97706))))
                     } else if (profile.avatarUrl != null) {
                         Modifier
-                            .size(46.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
                             .background(Color.Transparent)
+                            .border(1.5.dp, hexColor.copy(alpha = 0.7f), CircleShape)
                     } else {
                         Modifier
-                            .size(46.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
                             .background(hexColor)
                     },
@@ -930,13 +1046,13 @@ fun InboxItemCard(
                         AsyncImage(
                             model = profile.avatarUrl,
                             contentDescription = "Profile Picture",
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
                             contentScale = ContentScale.Crop
                         )
                     } else {
                         Text(
                             text = profile.username.take(2).uppercase(),
-                            color = DarkSlateBg,
+                            color = Color.White,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -946,10 +1062,10 @@ fun InboxItemCard(
                 if (isOnline) {
                     Box(
                         modifier = Modifier
-                            .size(13.dp)
+                            .size(14.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF10B981))
-                            .border(2.dp, CardSlate, CircleShape)
+                            .background(Color(0xFF00FF66))
+                            .border(2.5.dp, CardSlate, CircleShape)
                     )
                 }
             }
@@ -2217,7 +2333,7 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
                 } else {
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth() // Already defined extension, using fillMaxWidth locally
+                            .fillMaxWidth()
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -2240,10 +2356,11 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(24.dp))
+                                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
                                 .testTag("direct_message_text_input"),
                             colors = TextFieldDefaults.colors(
-                                focusedContainerColor = DarkSlateBg,
-                                unfocusedContainerColor = DarkSlateBg,
+                                focusedContainerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.6f),
+                                unfocusedContainerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.6f),
                                 focusedTextColor = TextLight,
                                 unfocusedTextColor = TextLight,
                                 focusedIndicatorColor = Color.Transparent,
@@ -2258,13 +2375,13 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
                             IconButton(
                                 onClick = { startAudRecorder() },
                                 modifier = Modifier
-                                    .background(AccentBlue, CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary, CircleShape)
                                     .size(44.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Mic,
                                     contentDescription = "Record Voice Message",
-                                    tint = DarkSlateBg,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -2278,14 +2395,14 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
                                     }
                                 },
                                 modifier = Modifier
-                                    .background(AccentBlue, CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary, CircleShape)
                                     .size(44.dp)
                                     .testTag("direct_message_send_btn")
                             ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.Send,
                                     contentDescription = "Send Direct Message",
-                                    tint = DarkSlateBg,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
