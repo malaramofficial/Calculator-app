@@ -1,5 +1,6 @@
 name: Android CI/CD
 
+on:
 push:
 branches:
 - main
@@ -7,7 +8,6 @@ branches:
 jobs:
 build:
 runs-on: ubuntu-latest
-environment: Calculator
 
 steps:
   - uses: actions/checkout@v4
@@ -17,24 +17,16 @@ steps:
     with:
       java-version: '17'
       distribution: temurin
-      cache: gradle
 
   - name: Grant execute permission
     run: chmod +x gradlew
 
-  - name: Decode Keystore
-    run: |
-      echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > app/release.keystore
-
   - name: Build Release APK
     run: ./gradlew assembleRelease
-    env:
-      SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-      SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-      SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-  - name: Upload Release APK
+  - name: Upload APK
     uses: actions/upload-artifact@v4
     with:
       name: release-apk
       path: app/build/outputs/apk/release/*.apk
+
