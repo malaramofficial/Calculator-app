@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.malaram.calculator" // Aapka package name
+    namespace = "com.malaram.calculator" // Apna asli package name check karein
     compileSdk = 34
 
     defaultConfig {
@@ -15,10 +15,10 @@ android {
         versionName = "1.0"
     }
 
-    // --- YE WAHAN HONA CHAHIYE (Inside Android Block) ---
+    // YAHAN SE DHAYAN DEIN - Ye ANDROID block ke andar hai
     signingConfigs {
         create("release") {
-            storeFile = file("../release.jks") // File name check karein
+            storeFile = file("../release.jks")
             storePassword = System.getenv("KEYSTORE_PASSWORD")
             keyAlias = System.getenv("KEY_ALIAS")
             keyPassword = System.getenv("KEY_PASSWORD")
@@ -28,13 +28,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("release") // Isse connect hoga
         }
     }
-    // ---------------------------------------------------
-}
-
-afterEvaluate {
-    tasks.findByName("assembleDebug")?.finalizedBy("copyApkToRoot")
-}
+} // <--- Ye Bracket 'android' block ko band karta hai
