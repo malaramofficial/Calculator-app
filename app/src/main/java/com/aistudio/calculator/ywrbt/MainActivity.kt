@@ -61,6 +61,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aistudio.calculator.ywrbt.ui.theme.*
 import com.aistudio.calculator.ywrbt.ui.profile.EditProfileScreen
 import com.aistudio.calculator.ywrbt.ui.auth.SignInScreen
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.app.Activity
@@ -330,10 +331,17 @@ fun CalculatorLockScreen(viewModel: CalculatorViewModel) {
                     )
                 }
 
+                val textLength = displayText.length
+                val dStyle = when {
+                    textLength > 12 -> MaterialTheme.typography.headlineMedium
+                    textLength > 8 -> MaterialTheme.typography.headlineLarge
+                    else -> MaterialTheme.typography.displayMedium
+                }
+
                 Text(
                     text = displayText.ifEmpty { "0" },
                     color = Color.White,
-                    style = MaterialTheme.typography.displayMedium,
+                    style = dStyle,
                     textAlign = TextAlign.End,
                     maxLines = 2,
                     modifier = Modifier
@@ -687,8 +695,10 @@ fun InstagramDirectScreen(viewModel: CalculatorViewModel) {
         
         Box(modifier = Modifier.fillMaxSize()) {
             if (showSettings) {
+                BackHandler { showSettings = false }
                 com.aistudio.calculator.ywrbt.ui.profile.VaultSettingsScreen(viewModel = viewModel, onBack = { showSettings = false })
             } else if (showEditProfile) {
+                BackHandler { showEditProfile = false }
                 EditProfileScreen(viewModel = viewModel, onBack = { showEditProfile = false })
             } else if (currentUsername.isEmpty()) {
                 ProfileSetupScreen(viewModel, firestoreStatus)
@@ -696,6 +706,10 @@ fun InstagramDirectScreen(viewModel: CalculatorViewModel) {
                 InstagramChatRoomView(viewModel)
             } else {
                 var currentSubTab by remember { mutableStateOf("messages") } // "messages", "users", "search"
+
+                if (currentSubTab != "messages") {
+                    BackHandler { currentSubTab = "messages" }
+                }
 
                 Column(
                     modifier = Modifier
@@ -1922,6 +1936,9 @@ fun FloatingHeartsBackground() {
 @Composable
 fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
     val recipient by viewModel.activeRecipient.collectAsState()
+    BackHandler(enabled = recipient != null) {
+        viewModel.setActiveRecipient(null)
+    }
     val currentMessages by viewModel.conversationMessages.collectAsState()
     val isSending by viewModel.isChatSending.collectAsState()
     val currentUsername by viewModel.currentUsername.collectAsState()
@@ -3125,6 +3142,9 @@ fun DirectUsersDirectoryView(viewModel: CalculatorViewModel) {
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(badgeColor)
+                                    .clickable {
+                                        selectedProfileForAction = profile
+                                    }
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
                                 Text(
