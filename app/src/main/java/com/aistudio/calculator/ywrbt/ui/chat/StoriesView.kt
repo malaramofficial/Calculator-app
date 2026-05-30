@@ -533,6 +533,8 @@ fun StoriesBar(
     val profiles by viewModel.profilesList.collectAsState()
     val currentUsername by viewModel.currentUsername.collectAsState()
     val seenStoryIds by viewModel.seenStoryIds.collectAsState()
+    val followingMap by viewModel.followingMap.collectAsState()
+    val myFollowing = remember(followingMap, currentUsername) { followingMap[currentUsername] ?: emptyList() }
     val viewingUsername by viewModel.activeViewingStoryUsername.collectAsState()
 
     var showPostDialog by remember { mutableStateOf(false) }
@@ -736,7 +738,9 @@ fun StoriesBar(
             }
 
             // Other users' Netflix story cards
-            val otherStoryAuthors = activeStoriesGrouped.keys.filter { it != currentUsername }
+            val otherStoryAuthors = activeStoriesGrouped.keys.filter { author ->
+                author != currentUsername && myFollowing.contains(author)
+            }
             items(otherStoryAuthors) { authorUsername ->
                 val authorStories = activeStoriesGrouped[authorUsername] ?: emptyList()
                 if (authorStories.isNotEmpty()) {
@@ -831,11 +835,14 @@ fun StoriesBar(
                                 )
                         )
 
-                        // Top-left user name pill or avatar initials
+                        // Top-left user name pill or avatar initials (clickable to view profile badge)
                         Row(
                             modifier = Modifier
                                 .align(Alignment.TopStart)
-                                .padding(6.dp),
+                                .padding(6.dp)
+                                .clickable {
+                                    viewModel.showProfileBadge(authorProfile ?: ChatProfile(authorUsername, authorUsername, "", "#38BDF8"))
+                                },
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             val hexStr = authorProfile?.avatarColorHex ?: "#2196F3"
@@ -1406,7 +1413,15 @@ fun StoryViewerDialog(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    viewModel.showProfileBadge(authorProfile ?: ChatProfile(username, username, "", "#2196F3"))
+                                }
+                                .padding(4.dp)
+                        ) {
                             val hexStr = authorProfile?.avatarColorHex ?: "#2196F3"
                             val parsedColor = remember(hexStr) {
                                 try { Color(android.graphics.Color.parseColor(hexStr)) } catch (e: Exception) { Color(0xFF2196F3) }

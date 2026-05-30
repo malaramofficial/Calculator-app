@@ -74,8 +74,8 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
     private val _activeProfileBadge = MutableStateFlow<ChatProfile?>(null)
     val activeProfileBadge: StateFlow<ChatProfile?> = _activeProfileBadge.asStateFlow()
 
-    fun showProfileBadge(profile: ChatProfile?) {
-        if (profile != null) {
+    fun showProfileBadge(profile: ChatProfile?, forceShowBadge: Boolean = true) {
+        if (!forceShowBadge && profile != null) {
             val userStories = storiesList.value.filter { it.username == profile.username }
             if (userStories.isNotEmpty()) {
                 activeViewingStoryUsername.value = profile.username
@@ -100,6 +100,27 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
 
     private val _vibrateEnabled = MutableStateFlow(prefs.getBoolean("settings_vibrate_enabled", true))
     val vibrateEnabled: StateFlow<Boolean> = _vibrateEnabled.asStateFlow()
+
+    private val _backgroundSyncEnabled = MutableStateFlow(prefs.getBoolean("settings_background_sync", true))
+    val backgroundSyncEnabled: StateFlow<Boolean> = _backgroundSyncEnabled.asStateFlow()
+
+    fun setBackgroundSyncEnabled(enabled: Boolean) {
+        _backgroundSyncEnabled.value = enabled
+        prefs.edit().putBoolean("settings_background_sync", enabled).apply()
+        triggerSyncServiceState()
+    }
+
+    fun triggerSyncServiceState() {
+        val syncEnabled = prefs.getBoolean("settings_background_sync", true)
+        val activeUser = prefs.getString("active_user", "") ?: ""
+        if (syncEnabled && activeUser.isNotEmpty()) {
+            android.util.Log.d("CalculatorViewModel", "Starting background sync service for $activeUser")
+            com.aistudio.calculator.ywrbt.notifications.SecureChatSyncService.startService(getApplication())
+        } else {
+            android.util.Log.d("CalculatorViewModel", "Stopping background sync service")
+            com.aistudio.calculator.ywrbt.notifications.SecureChatSyncService.stopService(getApplication())
+        }
+    }
 
     fun setAppTheme(theme: String) {
         _appTheme.value = theme
@@ -149,6 +170,8 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
         // Remove listeners & stop jobs
         incomingMessagesListener?.remove()
         incomingMessagesListener = null
+        followsListener?.remove()
+        followsListener = null
         mySentRequestsListener?.remove()
         mySentRequestsListener = null
         myReceivedRequestsListener?.remove()
@@ -199,6 +222,20 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
 
     private val _globalProfiles = MutableStateFlow<List<ChatProfile>>(emptyList())
     val globalProfiles: StateFlow<List<ChatProfile>> = _globalProfiles.asStateFlow()
+
+    private val _followersMap = MutableStateFlow<Map<String, List<String>>>(emptyMap())
+    val followersMap: StateFlow<Map<String, List<String>>> = _followersMap.asStateFlow()
+
+    private val _followingMap = MutableStateFlow<Map<String, List<String>>>(emptyMap())
+    val followingMap: StateFlow<Map<String, List<String>>> = _followingMap.asStateFlow()
+
+    private val _pendingFollowRequests = MutableStateFlow<List<String>>(emptyList())
+    val pendingFollowRequests: StateFlow<List<String>> = _pendingFollowRequests.asStateFlow()
+
+    private val _sentPendingRequests = MutableStateFlow<List<String>>(emptyList())
+    val sentPendingRequests: StateFlow<List<String>> = _sentPendingRequests.asStateFlow()
+
+    private var followsListener: ListenerRegistration? = null
 
     private val _chatRequests = MutableStateFlow<List<ChatRequest>>(emptyList())
     val chatRequests: StateFlow<List<ChatRequest>> = _chatRequests.asStateFlow()
@@ -306,6 +343,7 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
                 "bio" to profile.bio,
                 "avatarColorHex" to profile.avatarColorHex,
                 "avatarUrl" to profile.avatarUrl,
+                "isPrivate" to profile.isPrivate,
                 "isVirtual" to isVirtualUser(profile.username),
                 "googleEmail" to profile.googleEmail,
                 "timestamp" to System.currentTimeMillis(),
@@ -409,6 +447,9 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
                     listenForChatRequests(savedUser)
                     startPresenceTracking(savedUser)
                     fetchGlobalProfiles()
+                    withContext(Dispatchers.Main) {
+                        triggerSyncServiceState()
+                    }
                 } else if (savedGoogleEmail.isNotEmpty()) {
                     // If Google account is connected but username wasn't loaded, let's restore or generate it!
                     checkAndRestoreOrCreateProfileForEmail(savedGoogleEmail, savedGoogleName)
@@ -514,10 +555,8 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
         val currentTime = System.currentTimeMillis()
         val timeDiff = currentTime - lastButtonPressTime
         
-        // Robust debouncing to prevent emulator or double touch event duplications:
-        // 1. Block duplicate clicks on any button if they occur within 100ms of the previous button click.
-        // 2. Block clicks on the EXACT same button if they occur within 350ms (double-click threshold).
-        if (timeDiff < 100 || (timeDiff < 350 && value == lastButtonPressValue)) {
+        // Lightweight 50ms debounce guard to prevent double-bounce event duplications in some emulator layers
+        if (timeDiff < 50) {
             return
         }
         lastButtonPressTime = currentTime
@@ -833,11 +872,174 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    fun listenToFollows() {
+        followsListener?.remove()
+        followsListener = null
+
+        val firestore = db
+        val myUser = _currentUsername.value
+        if (firestore == null || !isFirebaseEnabled) {
+            val mockFollowers = mutableMapOf<String, MutableList<String>>()
+            val mockFollowing = mutableMapOf<String, MutableList<String>>()
+            
+            mockFollowers["sneha_kapoor"] = mutableListOf("rahul_dev", "elon_musk")
+            mockFollowing["rahul_dev"] = mutableListOf("sneha_kapoor")
+            mockFollowing["elon_musk"] = mutableListOf("sneha_kapoor")
+
+            mockFollowers["rahul_dev"] = mutableListOf("sneha_kapoor")
+            mockFollowing["sneha_kapoor"] = mutableListOf("rahul_dev")
+
+            if (myUser.isNotEmpty()) {
+                mockFollowing[myUser] = mutableListOf("sneha_kapoor", "rahul_dev", "elon_musk")
+                mockFollowers["sneha_kapoor"]?.add(myUser)
+                mockFollowers["rahul_dev"]?.add(myUser)
+                mockFollowers["elon_musk"] = mutableListOf(myUser)
+            }
+
+            _followersMap.value = mockFollowers
+            _followingMap.value = mockFollowing
+            return
+        }
+
+        try {
+            android.util.Log.d("CalculatorViewModel", "Starting real-time listener for follows collection")
+            followsListener = firestore.collection("follows")
+                .addSnapshotListener { snapshot, exception ->
+                    if (exception != null) {
+                        android.util.Log.e("CalculatorViewModel", "Follows snapshot listener error: ${exception.message}")
+                        return@addSnapshotListener
+                    }
+
+                    if (snapshot != null) {
+                        val newFollowersMap = mutableMapOf<String, MutableList<String>>()
+                        val newFollowingMap = mutableMapOf<String, MutableList<String>>()
+                        val tempPending = mutableListOf<String>()
+                        val tempSentPending = mutableListOf<String>()
+
+                        for (doc in snapshot.documents) {
+                            val follower = doc.getString("follower") ?: ""
+                            val following = doc.getString("following") ?: ""
+                            val status = doc.getString("status") ?: "ACCEPTED" // backward compatibility
+
+                            if (follower.isNotEmpty() && following.isNotEmpty()) {
+                                if (status == "ACCEPTED") {
+                                    newFollowersMap.getOrPut(following) { mutableListOf() }.add(follower)
+                                    newFollowingMap.getOrPut(follower) { mutableListOf() }.add(following)
+                                } else if (status == "PENDING") {
+                                    if (following.equals(myUser, ignoreCase = true)) {
+                                        tempPending.add(follower)
+                                    }
+                                    if (follower.equals(myUser, ignoreCase = true)) {
+                                        tempSentPending.add(following)
+                                    }
+                                }
+                            }
+                        }
+
+                        _followersMap.value = newFollowersMap
+                        _followingMap.value = newFollowingMap
+                        _pendingFollowRequests.value = tempPending
+                        _sentPendingRequests.value = tempSentPending
+                    }
+                }
+        } catch (e: Exception) {
+            android.util.Log.e("CalculatorViewModel", "Error starting follows snapshot: ${e.message}")
+        }
+    }
+
+    fun followUser(targetUsername: String) {
+        val current = _currentUsername.value
+        if (current.isEmpty() || targetUsername.isEmpty() || current == targetUsername) return
+
+        val firestore = db ?: return
+        if (!isFirebaseEnabled) return
+
+        // Resolve target user privacy state
+        val targetProfile = globalProfiles.value.find { it.username == targetUsername }
+        val isTargetPrivate = targetProfile?.isPrivate ?: false
+
+        val docId = "${current}_${targetUsername}"
+        val followData = mapOf(
+            "follower" to current,
+            "following" to targetUsername,
+            "status" to (if (isTargetPrivate) "PENDING" else "ACCEPTED"),
+            "timestamp" to System.currentTimeMillis()
+        )
+
+        firestore.collection("follows").document(docId).set(followData)
+            .addOnSuccessListener {
+                if (isTargetPrivate) {
+                    android.util.Log.d("CalculatorViewModel", "Follow request sent to private account: $targetUsername")
+                } else {
+                    android.util.Log.d("CalculatorViewModel", "Successfully followed $targetUsername")
+                }
+            }
+            .addOnFailureListener { e ->
+                android.util.Log.e("CalculatorViewModel", "Fail to follow: ${e.message}")
+            }
+    }
+
+    fun unfollowUser(targetUsername: String) {
+        val current = _currentUsername.value
+        if (current.isEmpty() || targetUsername.isEmpty() || current == targetUsername) return
+
+        val firestore = db ?: return
+        if (!isFirebaseEnabled) return
+
+        val docId = "${current}_${targetUsername}"
+        firestore.collection("follows").document(docId).delete()
+            .addOnSuccessListener {
+                android.util.Log.d("CalculatorViewModel", "Successfully unfollowed $targetUsername")
+            }
+            .addOnFailureListener { e ->
+                android.util.Log.e("CalculatorViewModel", "Fail to unfollow: ${e.message}")
+            }
+    }
+
+    fun acceptFollowRequest(followerUsername: String) {
+        val current = _currentUsername.value
+        if (current.isEmpty() || followerUsername.isEmpty()) return
+
+        val firestore = db ?: return
+        if (!isFirebaseEnabled) return
+
+        val docId = "${followerUsername}_${current}"
+        firestore.collection("follows").document(docId).update("status", "ACCEPTED")
+            .addOnSuccessListener {
+                android.util.Log.d("CalculatorViewModel", "Successfully accepted follow request from $followerUsername")
+            }
+            .addOnFailureListener { e ->
+                android.util.Log.e("CalculatorViewModel", "Failed to accept follow request: ${e.message}")
+            }
+    }
+
+    fun rejectFollowRequest(followerUsername: String) {
+        val current = _currentUsername.value
+        if (current.isEmpty() || followerUsername.isEmpty()) return
+
+        val firestore = db ?: return
+        if (!isFirebaseEnabled) return
+
+        val docId = "${followerUsername}_${current}"
+        firestore.collection("follows").document(docId).delete()
+            .addOnSuccessListener {
+                android.util.Log.d("CalculatorViewModel", "Successfully rejected follow request from $followerUsername")
+            }
+            .addOnFailureListener { e ->
+                android.util.Log.e("CalculatorViewModel", "Failed to reject follow request: ${e.message}")
+            }
+    }
+
     private var incomingMessagesListener: ListenerRegistration? = null
 
     fun listenForIncomingMessages(localUser: String) {
         incomingMessagesListener?.remove()
         incomingMessagesListener = null
+
+        if (localUser.isNotEmpty()) {
+            triggerSyncServiceState()
+            listenToFollows()
+        }
 
         if (localUser.isEmpty() || db == null || !isFirebaseEnabled) return
 
@@ -916,6 +1118,7 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
                                                 val hex = doc.getString("avatarColorHex") ?: "#38BDF8"
                                                 val gEmail = doc.getString("googleEmail") ?: ""
                                                 val avatarUrl = doc.getString("avatarUrl")
+                                                val isPrivateVal = doc.getBoolean("isPrivate") ?: false
                                                 val profile = ChatProfile(
                                                     username = sender,
                                                     fullName = fullName,
@@ -923,7 +1126,8 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
                                                     avatarColorHex = hex,
                                                     avatarUrl = avatarUrl,
                                                     isCreatedByLocalUser = false,
-                                                    googleEmail = gEmail
+                                                    googleEmail = gEmail,
+                                                    isPrivate = isPrivateVal
                                                 )
                                                 viewModelScope.launch {
                                                     repository.insertProfile(profile)
@@ -1019,6 +1223,20 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    fun setProfilePrivacy(isPrivate: Boolean) {
+        val username = _currentUsername.value
+        android.util.Log.d("CalculatorViewModel", "setProfilePrivacy: username=$username, isPrivate=$isPrivate")
+        if (username.isEmpty()) return
+        viewModelScope.launch {
+            val existing = repository.getProfile(username)
+            if (existing != null) {
+                val updated = existing.copy(isPrivate = isPrivate)
+                repository.insertProfile(updated)
+                uploadProfileToFirestore(updated)
+            }
+        }
+    }
+
     fun updateProfileDetails(fullName: String, bio: String, avatarUrl: String? = null, onComplete: () -> Unit) {
         val username = _currentUsername.value
         android.util.Log.d("CalculatorViewModel", "updateProfileDetails: username=$username, fullName=$fullName, bio=$bio, avatarUrl=$avatarUrl")
@@ -1108,6 +1326,7 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
                     val avatarColorHex = doc.getString("avatarColorHex") ?: "#38BDF8"
                     val avatarUrl = doc.getString("avatarUrl")
                     val googleEmailField = doc.getString("googleEmail") ?: email
+                    val isPrivateVal = doc.getBoolean("isPrivate") ?: false
 
                     val restoredProfile = ChatProfile(
                         username = username,
@@ -1116,7 +1335,8 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
                         avatarColorHex = avatarColorHex,
                         avatarUrl = avatarUrl,
                         isCreatedByLocalUser = true,
-                        googleEmail = googleEmailField
+                        googleEmail = googleEmailField,
+                        isPrivate = isPrivateVal
                     )
 
                     viewModelScope.launch {
@@ -1222,6 +1442,7 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
                                     val bio = doc.getString("bio") ?: ""
                                     val color = doc.getString("avatarColorHex") ?: "#A855F7"
                                     val avatarUrl = doc.getString("avatarUrl")
+                                    val isPrivateVal = doc.getBoolean("isPrivate") ?: false
                                     
                                     val matchedProfile = ChatProfile(
                                         username = username,
@@ -1229,7 +1450,8 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
                                         bio = bio,
                                         avatarColorHex = color,
                                         avatarUrl = avatarUrl,
-                                        isCreatedByLocalUser = false
+                                        isCreatedByLocalUser = false,
+                                        isPrivate = isPrivateVal
                                     )
                                     viewModelScope.launch {
                                         repository.insertProfile(matchedProfile)
@@ -1665,6 +1887,7 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
                             val lastActiveVal = doc.getLong("lastActive") ?: 0L
                             
                             // We map real remote users to non-local profiles
+                            val isPrivateVal = doc.getBoolean("isPrivate") ?: false
                             list.add(
                                 ChatProfile(
                                     username = username,
@@ -1674,7 +1897,8 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
                                     avatarUrl = avatarUrl,
                                     isCreatedByLocalUser = false,
                                     googleEmail = gEmail,
-                                    lastActive = lastActiveVal
+                                    lastActive = lastActiveVal,
+                                    isPrivate = isPrivateVal
                                 )
                             )
                         }
@@ -1970,6 +2194,296 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
                 timestamp = System.currentTimeMillis() - (1..12).random() * 3600000L
             )
             repository.insertStory(story)
+        }
+    }
+
+    // --- Reels Feature ---
+    private val _reelsList = MutableStateFlow<List<UserReel>>(emptyList())
+    val reelsList: StateFlow<List<UserReel>> = _reelsList.asStateFlow()
+
+    private var reelsListener: com.google.firebase.firestore.ListenerRegistration? = null
+
+    fun fetchGlobalReels() {
+        val firestore = db
+        val presetReelsList = listOf(
+            UserReel(
+                id = "mock_reel_1",
+                username = "sneha_kapoor",
+                fullName = "Sneha Kapoor 🌸",
+                avatarColorHex = "#A855F7",
+                caption = "Sunset vibes always hit different... 🌅 Who wants a high-contrast cinematic tutorial on editing?",
+                mediaUrl = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800",
+                musicTrack = "Lofi Sunset Groove • Original Audio",
+                likesCount = 142,
+                commentsCount = 8,
+                filter = "Sunset",
+                timestamp = System.currentTimeMillis() - 7200000
+            ),
+            UserReel(
+                id = "mock_reel_2",
+                username = "rahul_dev",
+                fullName = "Rahul Dev 💻",
+                avatarColorHex = "#10B981",
+                caption = "Coding in Jetpack Compose is absolute wizardry! 🧙‍♂️🪄 Edge-to-edge support with custom window insets is beautiful and lag-free.",
+                mediaUrl = "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800",
+                musicTrack = "Cyberpunk Synthwave 2088",
+                likesCount = 89,
+                commentsCount = 5,
+                filter = "Cyberpunk",
+                timestamp = System.currentTimeMillis() - 14400000
+            ),
+            UserReel(
+                id = "mock_reel_3",
+                username = "elon_musk",
+                fullName = "Elon Musk 🚀",
+                avatarColorHex = "#F59E0B",
+                caption = "Mars engineering simulation is green. Multiplanetary travel is crucial to sustain the light of consciousness. ✨☄️🌌",
+                mediaUrl = "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800",
+                musicTrack = "Space Odyssey Cinematic Echo",
+                likesCount = 4250,
+                commentsCount = 312,
+                filter = "Cosmic",
+                timestamp = System.currentTimeMillis() - 21600000
+            ),
+            UserReel(
+                id = "mock_reel_4",
+                username = "instagram_support",
+                fullName = "Insta Direct Support 🛡️",
+                avatarColorHex = "#EC4899",
+                caption = "Keep your direct messages safe with secure vault and stealth codes! 🤫🔐 Double tap if you love real privacy.",
+                mediaUrl = "https://images.unsplash.com/photo-1628157582853-a796fa650a6a?w=800",
+                musicTrack = "Insta Privacy Anthem",
+                likesCount = 203,
+                commentsCount = 11,
+                filter = "Normal",
+                timestamp = System.currentTimeMillis() - 86400000
+            )
+        )
+
+        if (firestore != null && isFirebaseEnabled) {
+            reelsListener?.remove()
+            reelsListener = firestore.collection("reels")
+                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                .addSnapshotListener { snapshot, e ->
+                    if (e != null) {
+                        android.util.Log.e("CalculatorViewModel", "Listen reels failed: ${e.message}")
+                        _reelsList.value = presetReelsList
+                        return@addSnapshotListener
+                    }
+                    if (snapshot != null && !snapshot.isEmpty) {
+                        val list = mutableListOf<UserReel>()
+                        for (doc in snapshot.documents) {
+                            val id = doc.id
+                            val username = doc.getString("username") ?: ""
+                            val fullName = doc.getString("fullName") ?: username
+                            val avatarColorHex = doc.getString("avatarColorHex") ?: "#38BDF8"
+                            val avatarUrl = doc.getString("avatarUrl")
+                            val caption = doc.getString("caption") ?: ""
+                            val mediaUrl = doc.getString("mediaUrl")
+                            val musicTrack = doc.getString("musicTrack") ?: "Original Audio"
+                            val likesCount = doc.getLong("likesCount")?.toInt() ?: 0
+                            val commentsCount = doc.getLong("commentsCount")?.toInt() ?: 0
+                            val filter = doc.getString("filter") ?: "Normal"
+                            val timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()
+                            
+                            val likedByUser = prefLikedReels.contains(id)
+
+                            list.add(
+                                UserReel(
+                                    id = id,
+                                    username = username,
+                                    fullName = fullName,
+                                    avatarColorHex = avatarColorHex,
+                                    avatarUrl = avatarUrl,
+                                    caption = caption,
+                                    mediaUrl = mediaUrl,
+                                    musicTrack = musicTrack,
+                                    likesCount = likesCount,
+                                    commentsCount = commentsCount,
+                                    filter = filter,
+                                    timestamp = timestamp,
+                                    isLikedByMe = likedByUser
+                                )
+                            )
+                        }
+                        if (list.size < 2) {
+                            val merged = list.toMutableList()
+                            for (p in presetReelsList) {
+                                if (merged.none { it.username == p.username }) {
+                                    merged.add(p)
+                                }
+                            }
+                            _reelsList.value = merged
+                        } else {
+                            _reelsList.value = list
+                        }
+                    } else {
+                        _reelsList.value = presetReelsList
+                    }
+                }
+        } else {
+            val updatedPresets = presetReelsList.map { reel ->
+                reel.copy(isLikedByMe = prefLikedReels.contains(reel.id))
+            }
+            _reelsList.value = updatedPresets
+        }
+    }
+
+    private val prefLikedReels: MutableSet<String> by lazy {
+        prefs.getStringSet("liked_reels_set", null)?.toMutableSet() ?: mutableSetOf()
+    }
+
+    fun likeReel(reelId: String) {
+        viewModelScope.launch {
+            val list = _reelsList.value.toMutableList()
+            val index = list.indexOfFirst { it.id == reelId }
+            if (index != -1) {
+                val reel = list[index]
+                val wasLiked = reel.isLikedByMe
+                val isLikedNow = !wasLiked
+                val newLikesCount = if (isLikedNow) reel.likesCount + 1 else (reel.likesCount - 1).coerceAtLeast(0)
+                
+                if (isLikedNow) {
+                    prefLikedReels.add(reelId)
+                } else {
+                    prefLikedReels.remove(reelId)
+                }
+                prefs.edit().putStringSet("liked_reels_set", prefLikedReels).apply()
+
+                val updatedReel = reel.copy(isLikedByMe = isLikedNow, likesCount = newLikesCount)
+                list[index] = updatedReel
+                _reelsList.value = list
+
+                val firestore = db
+                if (firestore != null && isFirebaseEnabled && !reelId.startsWith("mock_")) {
+                    firestore.collection("reels").document(reelId)
+                        .update("likesCount", newLikesCount)
+                }
+            }
+        }
+    }
+
+    fun postReel(caption: String, mediaUrl: String?, musicTrack: String, filter: String) {
+        val user = _currentUsername.value
+        if (user.isEmpty()) return
+
+        viewModelScope.launch {
+            val userProfile = profilesList.value.find { it.username == user }
+            val reelId = "reel_${user}_${System.currentTimeMillis()}"
+            val reel = UserReel(
+                id = reelId,
+                username = user,
+                fullName = userProfile?.fullName ?: user,
+                avatarColorHex = userProfile?.avatarColorHex ?: "#38BDF8",
+                avatarUrl = userProfile?.avatarUrl,
+                caption = caption,
+                mediaUrl = mediaUrl,
+                musicTrack = musicTrack,
+                likesCount = 0,
+                commentsCount = 0,
+                filter = filter,
+                timestamp = System.currentTimeMillis()
+            )
+
+            val updatedList = listOf(reel) + _reelsList.value
+            _reelsList.value = updatedList
+
+            val firestore = db
+            if (firestore != null && isFirebaseEnabled) {
+                val reelMap = hashMapOf(
+                    "username" to reel.username,
+                    "fullName" to reel.fullName,
+                    "avatarColorHex" to reel.avatarColorHex,
+                    "avatarUrl" to reel.avatarUrl,
+                    "caption" to reel.caption,
+                    "mediaUrl" to reel.mediaUrl,
+                    "musicTrack" to reel.musicTrack,
+                    "likesCount" to reel.likesCount,
+                    "commentsCount" to reel.commentsCount,
+                    "filter" to reel.filter,
+                    "timestamp" to reel.timestamp
+                )
+                firestore.collection("reels").document(reelId).set(reelMap)
+                    .addOnFailureListener { e ->
+                        android.util.Log.e("CalculatorViewModel", "Failed to upload Reel to Firestore: ${e.message}")
+                    }
+            }
+        }
+    }
+
+    fun postReelComment(reelId: String, text: String) {
+        val user = _currentUsername.value
+        if (user.isEmpty() || text.trim().isEmpty()) return
+
+        viewModelScope.launch {
+            val userProfile = profilesList.value.find { it.username == user }
+            val commentId = "comment_${user}_${System.currentTimeMillis()}"
+            val comment = ReelComment(
+                id = commentId,
+                username = user,
+                fullName = userProfile?.fullName ?: user,
+                avatarColorHex = userProfile?.avatarColorHex ?: "#38BDF8",
+                avatarUrl = userProfile?.avatarUrl,
+                text = text,
+                timestamp = System.currentTimeMillis()
+            )
+
+            val firestore = db
+            if (firestore != null && isFirebaseEnabled && !reelId.startsWith("mock_")) {
+                val commentMap = hashMapOf(
+                    "username" to comment.username,
+                    "fullName" to comment.fullName,
+                    "avatarColorHex" to comment.avatarColorHex,
+                    "avatarUrl" to comment.avatarUrl,
+                    "text" to comment.text,
+                    "timestamp" to comment.timestamp
+                )
+                firestore.collection("reels").document(reelId).collection("comments").document(commentId)
+                    .set(commentMap)
+                    .addOnSuccessListener {
+                        firestore.runTransaction { transaction ->
+                            val docRef = firestore.collection("reels").document(reelId)
+                            val snap = transaction.get(docRef)
+                            val oldCount = snap.getLong("commentsCount") ?: 0L
+                            transaction.update(docRef, "commentsCount", oldCount + 1)
+                        }
+                    }
+            }
+        }
+    }
+
+    fun listenReelComments(reelId: String, onUpdate: (List<ReelComment>) -> Unit): com.google.firebase.firestore.ListenerRegistration? {
+        val firestore = db
+        if (firestore != null && isFirebaseEnabled && !reelId.startsWith("mock_")) {
+            return firestore.collection("reels").document(reelId).collection("comments")
+                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.ASCENDING)
+                .addSnapshotListener { snapshot, e ->
+                    if (snapshot != null) {
+                        val list = mutableListOf<ReelComment>()
+                        for (doc in snapshot.documents) {
+                            list.add(
+                                ReelComment(
+                                    id = doc.id,
+                                    username = doc.getString("username") ?: "",
+                                    fullName = doc.getString("fullName") ?: "",
+                                    avatarColorHex = doc.getString("avatarColorHex") ?: "#38BDF8",
+                                    avatarUrl = doc.getString("avatarUrl"),
+                                    text = doc.getString("text") ?: "",
+                                    timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()
+                                )
+                            )
+                        }
+                        onUpdate(list)
+                    }
+                }
+        } else {
+            val offlineComments = listOf(
+                ReelComment("off_c_1", "rahul_dev", "Rahul Dev 💻", "#10B981", null, "Excellent work! Really loved the visual fidelity here.", System.currentTimeMillis() - 3600000),
+                ReelComment("off_c_2", "sneha_kapoor", "Sneha Kapoor 🌸", "#A855F7", null, "This styling is exquisite! Tell us more about the filter parameters.", System.currentTimeMillis() - 1800000),
+                ReelComment("off_c_3", "elon_musk", "Elon Musk 🚀", "#F59E0B", null, "Consciousness requires this clean UI architecture. Keep building.", System.currentTimeMillis() - 600000)
+            )
+            onUpdate(offlineComments)
+            return null
         }
     }
 }

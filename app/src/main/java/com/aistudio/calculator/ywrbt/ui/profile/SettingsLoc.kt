@@ -36,6 +36,8 @@ object SettingsLoc {
                 "vibrate_desc" -> "अधिसूचनाओं पर वाइब्रेशन अलर्ट"
                 "seen_title" -> "पढ़ने के टिक (Read Receipts)"
                 "seen_desc" -> "दूसरों को पता चलने दें कि आपने संदेश पढ़ा है"
+                "bg_sync_title" -> "व्हाट्सएप स्टाइल बैकग्राउंड नोटिफिकेशन (Background Sync)"
+                "bg_sync_desc" -> "एप्लिकेशन बंद होने पर भी व्हाट्सएप की तरह तुरंत नए संदेशों के नोटिफिकेशन प्राप्त करें"
                 
                 "account_info" -> "सत्यापित गूगल खाता"
                 "app_version" -> "संस्करण (Version)"
@@ -80,6 +82,8 @@ object SettingsLoc {
                 "vibrate_desc" -> "Aane wale message par haptic alert"
                 "seen_title" -> "Read Receipts (Double Green Tick)"
                 "seen_desc" -> "Dusro ko batayein ki aapne read kar liya"
+                "bg_sync_title" -> "WhatsApp Style Background Sync"
+                "bg_sync_desc" -> "App band hone par bhi instant messages ke notifications payein"
                 
                 "account_info" -> "Verified Google Account"
                 "app_version" -> "App Version"
@@ -124,6 +128,8 @@ object SettingsLoc {
                 "vibrate_desc" -> "Haptic vibrations for incoming alerts"
                 "seen_title" -> "Read Receipts (Seen tag)"
                 "seen_desc" -> "Allow others to see when you read their text"
+                "bg_sync_title" -> "Background Message Sync (WhatsApp Style)"
+                "bg_sync_desc" -> "Receive instant notifications even when the app is completely closed"
                 
                 "account_info" -> "Verified Google Account"
                 "app_version" -> "App Version"

@@ -13,7 +13,8 @@ data class ChatProfile(
     val avatarUrl: String? = null, // Profile Picture URL
     val isCreatedByLocalUser: Boolean = false, // If created as local switcher or manually searched
     val googleEmail: String = "", // Google Email linking the account to protect the ID from impersonation
-    val lastActive: Long = 0L
+    val lastActive: Long = 0L,
+    val isPrivate: Boolean = false
 )
 
 @Entity(tableName = "user_stories")
@@ -95,7 +96,7 @@ interface SecretDao {
 
 @Database(
     entities = [ChatProfile::class, ChatMessage::class, UserStory::class],
-    version = 10, // Destructive migration will rebuild schema seamlessly
+    version = 11, // Destructive migration will rebuild schema seamlessly
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -148,3 +149,30 @@ class VaultRepository(private val dao: SecretDao) {
     suspend fun updateMessageSavedState(sender: String, recipient: String, timestamp: Long, isSaved: Boolean) = dao.updateMessageSavedState(sender, recipient, timestamp, isSaved)
     suspend fun deleteExpiredMessages(cutoff: Long) = dao.deleteExpiredMessages(cutoff)
 }
+
+data class UserReel(
+    val id: String = "",
+    val username: String = "",
+    val fullName: String = "",
+    val avatarColorHex: String = "#38BDF8",
+    val avatarUrl: String? = null,
+    val caption: String = "",
+    val mediaUrl: String? = null,
+    val musicTrack: String = "Popular Beats",
+    val likesCount: Int = 0,
+    val commentsCount: Int = 0,
+    val filter: String = "Normal",
+    val timestamp: Long = System.currentTimeMillis(),
+    val isLikedByMe: Boolean = false
+)
+
+data class ReelComment(
+    val id: String = "",
+    val username: String = "",
+    val fullName: String = "",
+    val avatarColorHex: String = "#38BDF8",
+    val avatarUrl: String? = null,
+    val text: String = "",
+    val timestamp: Long = System.currentTimeMillis()
+)
+

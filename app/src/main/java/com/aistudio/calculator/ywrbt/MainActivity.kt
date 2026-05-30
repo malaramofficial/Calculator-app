@@ -35,12 +35,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,6 +76,21 @@ import com.aistudio.calculator.ywrbt.admob.BannerAd
 import com.aistudio.calculator.ywrbt.admob.findActivity
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        @Volatile
+        var isAppInForeground = false
+    }
+
+    override fun onStart() {
+        super.onStart()
+        isAppInForeground = true
+    }
+
+    override fun onStop() {
+        super.onStop()
+        isAppInForeground = false
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         MobileAds.initialize(this) {}
@@ -105,7 +128,9 @@ fun VaultApp(calcViewModel: CalculatorViewModel = viewModel()) {
         label = "ScreenTransition"
     ) { unlocked ->
         if (unlocked) {
-            InstagramDirectScreen(calcViewModel)
+            CalculatorVaultTheme(themeName = "theme_love_velvet") {
+                InstagramDirectScreen(calcViewModel)
+            }
         } else {
             CalculatorLockScreen(calcViewModel)
         }
@@ -604,6 +629,37 @@ fun ProfileSetupScreen(
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Fail-safe button to force direct offline bypass entry in case Google/Firebase API encounters latency or fails in emulation.
+            Button(
+                onClick = {
+                    val email = googleEmail ?: "guest@gmail.com"
+                    val dispName = viewModel.googleAccountName.value ?: "Guest User"
+                    val emailPrefix = email.substringBefore("@")
+                        .replace(Regex("[^a-zA-Z0-9]"), "")
+                        .lowercase()
+                        .trim()
+                    val fallbackUsername = if (emailPrefix.isEmpty()) "user_${(1000..9999).random()}" else emailPrefix
+                    viewModel.registerOrSwitchUser(fallbackUsername, dispName, "ऑफ़लाइन सत्यापित अकाउंट 🛡️")
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = AccentRose),
+                modifier = Modifier.fillMaxWidth().height(48.dp)
+            ) {
+                Text("ऑफ़लाइन आगे बढ़ें (Skip and Match Offline)", color = TextLight, fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedButton(
+                onClick = { viewModel.googleSignOut() },
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextLight),
+                border = androidx.compose.foundation.BorderStroke(1.dp, TextLight.copy(alpha = 0.3f)),
+                modifier = Modifier.fillMaxWidth().height(48.dp)
+            ) {
+                Text("वापस जाएं (Go Back / Sign Out)")
+            }
         }
     }
 }
@@ -622,22 +678,30 @@ fun InstagramDirectScreen(viewModel: CalculatorViewModel) {
     var showSettings by remember { mutableStateOf(false) }
     val activeProfileBadge by viewModel.activeProfileBadge.collectAsState()
 
-    if (showSettings) {
-        com.aistudio.calculator.ywrbt.ui.profile.VaultSettingsScreen(viewModel = viewModel, onBack = { showSettings = false })
-    } else if (showEditProfile) {
-        EditProfileScreen(viewModel = viewModel, onBack = { showEditProfile = false })
-    } else if (currentUsername.isEmpty()) {
-        ProfileSetupScreen(viewModel, firestoreStatus)
-    } else if (activeRecipient != null) {
-        InstagramChatRoomView(viewModel)
-    } else {
-        var currentSubTab by remember { mutableStateOf("messages") } // "messages", "users", "search"
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        FloatingHeartsBackground() // Beautiful floating romantic pink hearts background globally
+        
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (showSettings) {
+                com.aistudio.calculator.ywrbt.ui.profile.VaultSettingsScreen(viewModel = viewModel, onBack = { showSettings = false })
+            } else if (showEditProfile) {
+                EditProfileScreen(viewModel = viewModel, onBack = { showEditProfile = false })
+            } else if (currentUsername.isEmpty()) {
+                ProfileSetupScreen(viewModel, firestoreStatus)
+            } else if (activeRecipient != null) {
+                InstagramChatRoomView(viewModel)
+            } else {
+                var currentSubTab by remember { mutableStateOf("messages") } // "messages", "users", "search"
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-        ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Transparent)
+                ) {
             // Instagram Top Header
             val profilesList by viewModel.profilesList.collectAsState()
             val currentUserProfile = remember(profilesList, currentUsername) {
@@ -678,11 +742,11 @@ fun InstagramDirectScreen(viewModel: CalculatorViewModel) {
                     icon = { Icon(imageVector = Icons.Default.Mail, contentDescription = "Active Chats") },
                     label = { Text("DMs", fontSize = 11.sp) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = AccentBlue,
-                        selectedTextColor = AccentBlue,
-                        indicatorColor = AccentBlue.copy(alpha = 0.12f),
-                        unselectedIconColor = TextMuted,
-                        unselectedTextColor = TextMuted
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
                 )
                 NavigationBarItem(
@@ -694,11 +758,11 @@ fun InstagramDirectScreen(viewModel: CalculatorViewModel) {
                     icon = { Icon(imageVector = Icons.Default.People, contentDescription = "All Registered Users") },
                     label = { Text("Users", fontSize = 11.sp) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = AccentBlue,
-                        selectedTextColor = AccentBlue,
-                        indicatorColor = AccentBlue.copy(alpha = 0.12f),
-                        unselectedIconColor = TextMuted,
-                        unselectedTextColor = TextMuted
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
                 )
                 NavigationBarItem(
@@ -707,16 +771,18 @@ fun InstagramDirectScreen(viewModel: CalculatorViewModel) {
                     icon = { Icon(imageVector = Icons.Default.Search, contentDescription = "Discover Users") },
                     label = { Text("Find ID", fontSize = 11.sp) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = AccentBlue,
-                        selectedTextColor = AccentBlue,
-                        indicatorColor = AccentBlue.copy(alpha = 0.12f),
-                        unselectedIconColor = TextMuted,
-                        unselectedTextColor = TextMuted
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
                 )
             }
         }
     }
+    } // Closes inner Box
+    } // Closes outer Box containing FloatingHeartsBackground
 
     if (activeProfileBadge != null) {
         com.aistudio.calculator.ywrbt.ui.profile.ProfileBadgeDialog(
@@ -735,7 +801,7 @@ fun InstagramTopHeader(
     onOpenSettings: () -> Unit
 ) {
     Surface(
-        color = CardSlate,
+        color = MaterialTheme.colorScheme.surface,
         shadowElevation = 4.dp
     ) {
         Row(
@@ -756,7 +822,7 @@ fun InstagramTopHeader(
                         .clip(CircleShape)
                         .background(
                             Brush.linearGradient(
-                                listOf(AccentBlue, AccentRose)
+                                listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
                             )
                         ),
                     contentAlignment = Alignment.Center
@@ -771,7 +837,7 @@ fun InstagramTopHeader(
                     } else {
                         Text(
                             text = (profile?.username ?: "??").take(2).uppercase(),
-                            color = TextLight,
+                            color = MaterialTheme.colorScheme.onPrimary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -783,13 +849,13 @@ fun InstagramTopHeader(
                 Column {
                     Text(
                         text = "@${profile?.username ?: "..."}",
-                        color = TextLight,
+                        color = MaterialTheme.colorScheme.onBackground,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = "Edit Profile",
-                        color = AccentBlue,
+                        color = MaterialTheme.colorScheme.primary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier
@@ -801,8 +867,8 @@ fun InstagramTopHeader(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Direct",
-                    color = TextLight,
+                    text = "Direct DMs 💖",
+                    color = MaterialTheme.colorScheme.onBackground,
                     fontWeight = FontWeight.Black,
                     fontSize = 18.sp,
                     letterSpacing = 0.5.sp,
@@ -813,13 +879,13 @@ fun InstagramTopHeader(
                     onClick = onOpenSettings,
                     modifier = Modifier
                         .padding(end = 6.dp)
-                        .background(AccentBlue.copy(alpha = 0.12f), CircleShape)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape)
                         .size(34.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Settings,
                         contentDescription = "Settings Option",
-                        tint = AccentBlue,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -827,13 +893,13 @@ fun InstagramTopHeader(
                 IconButton(
                     onClick = { viewModel.lockVault() },
                     modifier = Modifier
-                        .background(AccentRose.copy(alpha = 0.12f), CircleShape)
+                        .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f), CircleShape)
                         .size(34.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.PowerSettingsNew,
                         contentDescription = "Stealth Exit",
-                        tint = AccentRose,
+                        tint = MaterialTheme.colorScheme.tertiary,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -892,20 +958,20 @@ fun DirectMessagesInboxView(
                 Icon(
                     imageVector = Icons.Default.ChatBubbleOutline,
                     contentDescription = null,
-                    tint = AccentBlue.copy(alpha = 0.4f),
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
                     modifier = Modifier.size(64.dp)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "सुरक्षित चैट में आपका स्वागत है!",
-                    color = TextLight,
+                    text = "सुरक्षित चैट में आपका स्वागत है! 💕",
+                    color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                   )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "खोज डायरेक्टरी में अपने दोस्तों के असली यूजरनेम ढूंढें और सुरक्षित डायरेक्ट चैटिंग शुरू करें। यहाँ कोई भी फेक या डेमो चैट आईडी नहीं दिखाई जाती है।",
-                    color = TextMuted,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f),
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center,
                     lineHeight = 18.sp
@@ -913,9 +979,9 @@ fun DirectMessagesInboxView(
                 Spacer(modifier = Modifier.height(20.dp))
                 Button(
                     onClick = onNavigateSearch,
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Text("दोस्त की आईडी जोड़ें (Find ID)", color = DarkSlateBg, fontWeight = FontWeight.Bold)
+                    Text("दोस्त की आईडी जोड़ें (Find ID)", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                 }
             }
         } else {
@@ -936,14 +1002,14 @@ fun DirectMessagesInboxView(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Messages",
-                            color = TextLight,
+                            text = "Messages 💌",
+                            color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = "${sortedInterlocutors.size} Available Devices",
-                            color = TextMuted,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
                             fontSize = 11.sp
                         )
                     }
@@ -985,7 +1051,7 @@ fun InboxItemCard(
     val hexColor = try {
         Color(android.graphics.Color.parseColor(profile.avatarColorHex))
     } catch (e: Exception) {
-        AccentBlue
+        Color(0xFFFF5277)
     }
 
     val isOnline = isOnlineUserCheck(profile.username, profile.lastActive)
@@ -994,17 +1060,61 @@ fun InboxItemCard(
             profile.username.trim().equals("malaram_official", ignoreCase = true) ||
             profile.username.trim().equals("malaramofficial", ignoreCase = true)
 
+    val infiniteTransition = rememberInfiniteTransition(label = "inbox_card_3d")
+    val cardFloatY by infiniteTransition.animateFloat(
+        initialValue = -2.5f,
+        targetValue = 2.5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "translateY"
+    )
+    val cardScale by infiniteTransition.animateFloat(
+        initialValue = 0.99f,
+        targetValue = 1.01f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+    val animShimmerLoc by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmer"
+    )
+    val silkyGoldenBrush = remember(animShimmerLoc) {
+        Brush.linearGradient(
+            colors = listOf(
+                Color(0xFFFFD700), // Pure Gold
+                Color(0xFFFFF7AC), // Creamy Silk
+                Color(0xFFEAB308), // Metallic Gold
+                Color(0xFFFFF7AC), // Highlights
+                Color(0xFFFFD700)
+            ),
+            start = androidx.compose.ui.geometry.Offset(animShimmerLoc * 400f, 0f),
+            end = androidx.compose.ui.geometry.Offset((animShimmerLoc + 1f) * 400f, 400f)
+        )
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                translationY = cardFloatY
+                scaleX = cardScale
+                scaleY = cardScale
+                shadowElevation = 8f
+            }
             .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)),
         shape = RoundedCornerShape(20.dp),
-        border = if (isOwner) {
-            androidx.compose.foundation.BorderStroke(1.5.dp, androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFFFBBF24), Color(0xFFF59E0B), Color(0xFFD97706))))
-        } else {
-            androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
-        }
+        border = androidx.compose.foundation.BorderStroke(2.dp, silkyGoldenBrush)
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
@@ -1065,7 +1175,7 @@ fun InboxItemCard(
                             .size(14.dp)
                             .clip(CircleShape)
                             .background(Color(0xFF00FF66))
-                            .border(2.5.dp, CardSlate, CircleShape)
+                            .border(2.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
                     )
                 }
             }
@@ -1084,7 +1194,7 @@ fun InboxItemCard(
                     ) {
                         Text(
                             text = profile.fullName,
-                            color = if (isOwner) Color(0xFFFBBF24) else TextLight,
+                            color = if (isOwner) Color(0xFFFBBF24) else MaterialTheme.colorScheme.onBackground,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
                             maxLines = 1,
@@ -1109,7 +1219,7 @@ fun InboxItemCard(
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
                                 contentDescription = "Verified status",
-                                tint = AccentBlue,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(14.dp)
                             )
                         }
@@ -1118,7 +1228,7 @@ fun InboxItemCard(
                     if (lastMessage != null) {
                         Text(
                             text = formatChatTime(lastMessage.timestamp),
-                            color = if (unreadCount > 0) AccentBlue else TextMuted,
+                            color = if (unreadCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.60f),
                             fontSize = 11.sp,
                             fontWeight = if (unreadCount > 0) FontWeight.Bold else FontWeight.Normal
                         )
@@ -1133,7 +1243,7 @@ fun InboxItemCard(
                 }
                 Text(
                     text = descText,
-                    color = if (unreadCount > 0) AccentBlue else TextMuted,
+                    color = if (unreadCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.60f),
                     fontSize = 12.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -1161,7 +1271,7 @@ fun InboxItemCard(
                 Icon(
                     imageVector = Icons.Default.ChevronRight,
                     contentDescription = null,
-                    tint = TextMuted,
+                    tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -1315,10 +1425,60 @@ fun DirectSearchDiscoveryView(
                     }
                     val isOnline = isOnlineUserCheck(profile.username, profile.lastActive)
 
+                    val infiniteTransition = rememberInfiniteTransition(label = "search_card_3d")
+                    val cardFloatY by infiniteTransition.animateFloat(
+                        initialValue = -2f,
+                        targetValue = 2f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(2500, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "translateY"
+                    )
+                    val cardScale by infiniteTransition.animateFloat(
+                        initialValue = 0.99f,
+                        targetValue = 1.01f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(2500, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "scale"
+                    )
+                    val animShimmerLoc by infiniteTransition.animateFloat(
+                        initialValue = 0f,
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(4500, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
+                        ),
+                        label = "shimmer"
+                    )
+                    val silkyGoldenBrush = remember(animShimmerLoc) {
+                        Brush.linearGradient(
+                            colors = listOf(
+                                Color(0xFFFFD700), // Pure Gold
+                                Color(0xFFFFF7AC), // Creamy Silk
+                                Color(0xFFEAB308), // Metallic Gold
+                                Color(0xFFFFF7AC), // Highlights
+                                Color(0xFFFFD700)
+                            ),
+                            start = androidx.compose.ui.geometry.Offset(animShimmerLoc * 400f, 0f),
+                            end = androidx.compose.ui.geometry.Offset((animShimmerLoc + 1f) * 400f, 400f)
+                        )
+                    }
+
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = CardSlate),
-                        shape = RoundedCornerShape(16.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer {
+                                translationY = cardFloatY
+                                scaleX = cardScale
+                                scaleY = cardScale
+                                shadowElevation = 6f
+                            },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)),
+                        shape = RoundedCornerShape(16.dp),
+                        border = androidx.compose.foundation.BorderStroke(2.dp, silkyGoldenBrush)
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp),
@@ -1700,6 +1860,64 @@ fun DirectAccountsView(
     }
 }
 
+@Composable
+fun FloatingHeartsBackground() {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val width = constraints.maxWidth
+        val height = constraints.maxHeight
+        if (width > 0 && height > 0) {
+            val infiniteTransition = rememberInfiniteTransition(label = "hearts")
+            val progress by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 15000, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "progress"
+            )
+
+            val heartCount = 4
+            val emojis = remember { listOf("❤️", "💖", "💝", "💕") }
+            val heartParams = remember(width, height) {
+                List(heartCount) { i ->
+                    val startX = 0.15f + (i * 0.7f / heartCount) + kotlin.random.Random.nextFloat() * 0.05f
+                    val scale = 0.6f + kotlin.random.Random.nextFloat() * 0.4f
+                    val phaseOffset = i.toFloat() / heartCount
+                    Triple(startX, scale, phaseOffset)
+                }
+            }
+
+            for (i in 0 until heartCount) {
+                val (startX, scale, phaseOffset) = heartParams[i]
+                val heartProgress = (progress + phaseOffset) % 1f
+                val yFraction = 1f - heartProgress
+
+                val alpha = when {
+                    heartProgress < 0.15f -> heartProgress / 0.15f
+                    heartProgress > 0.85f -> (1f - heartProgress) / 0.15f
+                    else -> 1f
+                }
+
+                val swing = kotlin.math.sin(heartProgress * 2 * kotlin.math.PI.toFloat()) * 20f
+
+                Text(
+                    text = emojis[i % emojis.size],
+                    fontSize = (20f * scale).sp,
+                    modifier = Modifier
+                        .graphicsLayer(
+                            scaleX = scale,
+                            scaleY = scale,
+                            alpha = alpha * 0.22f,
+                            translationX = (startX * width.toFloat()) + swing,
+                            translationY = yFraction * height.toFloat()
+                        )
+                )
+            }
+        }
+    }
+}
+
 // ================= THE DIRECT THREAD ROOM VIEW =================
 @Composable
 fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
@@ -1917,24 +2135,26 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
     }
 
     val themeName by viewModel.appTheme.collectAsState()
-    val bgBrush = remember(themeName) {
-        when (themeName) {
-            "theme_midnight_cosmic" -> Brush.verticalGradient(
-                colors = listOf(Color(0xFF0C0028), Color(0xFF03001C))
+    val bgBrush = remember {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFFFFF0F3), // Soft white rose pink
+                Color(0xFFFFD1DC), // Soft Sweet Cupid Pink
+                Color(0xFFFFB3C6)  // Sweet Rose Pink
             )
-            "theme_forest_emerald" -> Brush.verticalGradient(
-                colors = listOf(Color(0xFF011C15), Color(0xFF022C22))
+        )
+    }
+
+    val silkGoldBrush = remember {
+        Brush.linearGradient(
+            colors = listOf(
+                Color(0xFFD4AF37), // Metallic Gold
+                Color(0xFFFFDF00), // Bright Gold
+                Color(0xFFFFF7D6), // Silky Gold Shine
+                Color(0xFFD4AF37), // Metallic Gold
+                Color(0xFFA67C1E)  // Rich Deep Satin Gold
             )
-            "theme_royal_amethyst" -> Brush.verticalGradient(
-                colors = listOf(Color(0xFF140024), Color(0xFF1F0033))
-            )
-            "theme_love_velvet" -> Brush.verticalGradient(
-                colors = listOf(Color(0xFF1F0206), Color(0xFF1E050B))
-            )
-            else -> Brush.verticalGradient(
-                colors = listOf(Color(0xFF080D18), Color(0xFF0F172A))
-            )
-        }
+        )
     }
 
     Column(
@@ -1944,14 +2164,14 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
     ) {
         // Direct Header Item Bar
         Surface(
-            color = MaterialTheme.colorScheme.surface,
+            color = Color(0xFFFFD1DC).copy(alpha = 0.95f),
             tonalElevation = 6.dp
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -1960,7 +2180,8 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Exit to Inbox",
-                            tint = TextLight
+                            tint = Color(0xFF9E1F30),
+                            modifier = Modifier.size(24.dp)
                         )
                     }
 
@@ -1974,68 +2195,94 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
                                 recipientProfile.username.trim().equals("malaram_official", ignoreCase = true) ||
                                 recipientProfile.username.trim().equals("malaramofficial", ignoreCase = true)
 
-                        Box(
-                            modifier = if (isOwnerRec) {
-                                Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFFFBBF24), Color(0xFFF59E0B), Color(0xFFD97706))))
-                            } else {
-                                Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .background(hexColor)
-                            },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (isOwnerRec) "👑" else recipientProfile.username.take(2).uppercase(),
-                                color = if (isOwnerRec) Color.White else DarkSlateBg,
-                                fontSize = if (isOwnerRec) 14.sp else 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                        val stableStreak = remember(recipientProfile.username) {
+                            (Math.abs(recipientProfile.username.hashCode()) % 120) + 36
                         }
 
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(46.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.sweepGradient(
+                                        listOf(Color(0xFFFFD700), Color(0xFFFF5277), Color(0xFFFFD1DC), Color(0xFFFFD700))
+                                    )
+                                )
+                                .padding(2.5.dp) // Premium border ring
+                                .clip(CircleShape)
+                                .background(Color.White),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (recipientProfile.avatarUrl != null) {
+                                AsyncImage(
+                                    model = recipientProfile.avatarUrl,
+                                    contentDescription = "Contact photo",
+                                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color(0xFFFFF0F3)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = recipientProfile.username.take(2).uppercase(),
+                                        color = Color(0xFFBE123C),
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
 
                         val isOnline = isOnlineUserCheck(recipientProfile.username, recipientProfile.lastActive)
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = recipientProfile.fullName,
-                                    color = if (isOwnerRec) Color(0xFFFBBF24) else TextLight,
+                                    color = Color(0xFF4C0519), // High contrast dark maroon
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
+                                    fontSize = 15.sp
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                if (isOwnerRec) {
-                                    Surface(
-                                        color = Color(0xFFF59E0B).copy(alpha = 0.15f),
-                                        shape = RoundedCornerShape(4.dp),
-                                        border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFFFBBF24))
+                                // Verified lover badge ❤️
+                                Icon(
+                                    imageVector = Icons.Default.Favorite,
+                                    contentDescription = "Verified Lover badge",
+                                    tint = Color(0xFFFF5277),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = if (isOnline) "ऑनलाइन (Online)" else "ऑफ़लाइन",
+                                    color = if (isOnline) Color(0xFF0D9488) else Color(0xFF9E3F5C),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    color = Color(0xFFFEF2F2),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD1DC))
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Text(
-                                            text = "मालिक 👑",
-                                            color = Color(0xFFFBBF24),
-                                            fontSize = 8.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            text = "🔥 $stableStreak Days",
+                                            color = Color(0xFFE11D48),
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold
                                         )
                                     }
-                                } else if (recipientProfile.username.trim().lowercase() in listOf("instagram_support", "sneha_kapoor", "rahul_dev", "elon_musk")) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = "Verified status",
-                                        tint = AccentBlue,
-                                        modifier = Modifier.size(12.dp)
-                                    )
                                 }
                             }
-                            Text(
-                                text = if (isOnline) "@${recipientProfile.username} • ऑनलाइन (Online)" else "@${recipientProfile.username} • ऑफ़लाइन",
-                                color = if (isOnline) Color(0xFF10B981) else TextMuted,
-                                fontSize = 11.sp
-                            )
                         }
                     }
                 }
@@ -2047,7 +2294,7 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
                     Icon(
                         imageVector = Icons.Default.DeleteSweep,
                         contentDescription = "Clear DMs history",
-                        tint = AccentRose.copy(alpha = 0.8f)
+                        tint = Color(0xFFBE123C)
                     )
                 }
             }
@@ -2060,49 +2307,103 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
 
         if (isChatUnlocked) {
             val isVanishActive by viewModel.isVanishMode.collectAsState()
-            Row(
+            
+            // Heart pulsing scale animation when Vanish Mode is active
+            val pulseTransition = rememberInfiniteTransition(label = "pulse_heart")
+            val heartPulseScale by pulseTransition.animateFloat(
+                initialValue = 0.95f,
+                targetValue = 1.15f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1000, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "heartPulse"
+            )
+
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(CardSlate.copy(alpha = 0.6f))
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .clickable { viewModel.toggleVanishMode(!isVanishActive) },
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isVanishActive) Color(0xFFFFF0F3) else Color.White.copy(alpha = 0.7f)
+                ),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(
+                    width = 1.5.dp,
+                    color = if (isVanishActive) Color(0xFFFF5277) else Color(0xFFFFD1DC)
+                )
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = if (isVanishActive) Icons.Default.Timer else Icons.Default.ChatBubbleOutline,
-                        contentDescription = null,
-                        tint = if (isVanishActive) AccentRose else AccentBlue,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (isVanishActive) "💨 वैनिश मोड सक्रिय (दिखने के बाद स्वतः डिलीट)" else "सुरक्षित एंड-टू-एंड चैट सक्रिय",
-                        color = if (isVanishActive) AccentRose else TextMuted,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-                
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = if (isVanishActive) "वैनिश ऑन (ON)" else "वैनिश बंद (OFF)",
-                        color = if (isVanishActive) AccentRose else TextMuted,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(end = 4.dp)
-                    )
-                    Switch(
-                        checked = isVanishActive,
-                        onCheckedChange = { viewModel.toggleVanishMode(it) },
-                        modifier = Modifier.scale(0.7f).testTag("vanish_mode_switch"),
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = AccentRose,
-                            checkedTrackColor = AccentRose.copy(alpha = 0.3f),
-                            uncheckedThumbColor = TextMuted,
-                            uncheckedTrackColor = ButtonSlate
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .graphicsLayer {
+                                    if (isVanishActive) {
+                                        scaleX = heartPulseScale
+                                        scaleY = heartPulseScale
+                                    }
+                                }
+                        ) {
+                            Text(
+                                text = if (isVanishActive) "💖" else "🤍",
+                                fontSize = 16.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = if (isVanishActive) "वैनिश मोड सक्रिय (Vanish Mode Active 🔒)" else "सुरक्षित एंड-टू-एंड चैट (Secure Chat)",
+                                color = if (isVanishActive) Color(0xFFBE123C) else Color(0xFF4C0519),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = if (isVanishActive) "दिखने के बाद संदेश अपने आप मिट जाएंगे" else "संदेश कैलकुलेटर लॉक के पीछे तिजोरी में सुरक्षित हैं",
+                                color = Color(0xFF881337).copy(alpha = 0.75f),
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+
+                    // Custom animated sliding romantic toggle switch
+                    Box(
+                        modifier = Modifier
+                            .size(height = 26.dp, width = 50.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (isVanishActive) Color(0xFFFF5277) else Color(0xFFE2E8F0))
+                            .padding(2.dp)
+                            .clickable { viewModel.toggleVanishMode(!isVanishActive) },
+                        contentAlignment = if (isVanishActive) Alignment.CenterEnd else Alignment.CenterStart
+                    ) {
+                        val offsetAnim by animateDpAsState(
+                            targetValue = if (isVanishActive) 24.dp else 0.dp,
+                            animationSpec = spring(stiffness = Spring.StiffnessMedium),
+                            label = "toggle"
                         )
-                    )
+                        Box(
+                            modifier = Modifier
+                                .offset(x = offsetAnim)
+                                .size(22.dp)
+                                .clip(CircleShape)
+                                .background(Color.White)
+                                .shadow(2.dp, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isVanishActive) Icons.Default.Lock else Icons.Default.LockOpen,
+                                contentDescription = null,
+                                tint = if (isVanishActive) Color(0xFFFF5277) else Color(0xFF94A3B8),
+                                modifier = Modifier.size(11.dp)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -2112,6 +2413,9 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
                     .weight(1f)
                     .fillMaxWidth()
             ) {
+                // Beautiful romantic floating hearts animated behind the messages
+                FloatingHeartsBackground()
+
                 if (currentMessages.isEmpty()) {
                     Column(
                         modifier = Modifier
@@ -2120,34 +2424,71 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Box(
+                        val heartbeatTransition = rememberInfiniteTransition(label = "heartbeat")
+                        val heartbeatScale by heartbeatTransition.animateFloat(
+                            initialValue = 0.9f,
+                            targetValue = 1.15f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(900, easing = FastOutSlowInEasing),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "heart_scale"
+                        )
+
+                        Card(
                             modifier = Modifier
-                                .size(54.dp)
-                                .clip(CircleShape)
-                                .background(hexColor.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
+                                .fillMaxWidth()
+                                .graphicsLayer {
+                                    shadowElevation = 10f
+                                },
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color.White.copy(alpha = 0.8f)
+                            ),
+                            shape = RoundedCornerShape(24.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFFFD1DC))
                         ) {
-                            Text(
-                                text = recipientProfile.username.take(2).uppercase(),
-                                color = hexColor,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Column(
+                                modifier = Modifier.padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .graphicsLayer {
+                                            scaleX = heartbeatScale
+                                            scaleY = heartbeatScale
+                                        }
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFFF5277).copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "❤️",
+                                        fontSize = 32.sp
+                                    )
+                                }
+                                
+                                Spacer(modifier = Modifier.height(16.dp))
+                                
+                                Text(
+                                    text = "❤️ Your Private Love Space",
+                                    color = Color(0xFF4C0519),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 17.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                                
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                Text(
+                                    text = "Messages are end-to-end encrypted and protected behind your calculator lock. Nobody else can ever see them here.",
+                                    color = Color(0xFF881337),
+                                    fontSize = 13.sp,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 18.sp
+                                )
+                            }
                         }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Encrypted Connection Built",
-                            color = TextLight,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-                        Text(
-                            text = "Your private conversation with @${recipientProfile.username} begins now.",
-                            color = TextMuted,
-                            fontSize = 11.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
                     }
                 } else {
                     LazyColumn(
@@ -2165,15 +2506,15 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
                             val tertiaryVar = MaterialTheme.colorScheme.tertiary
                             val surfaceVar = MaterialTheme.colorScheme.surface
                             val bubbleBg = if (isMe) {
-                                Brush.linearGradient(listOf(primaryVar, tertiaryVar.copy(alpha = 0.8f)))
+                                Brush.linearGradient(listOf(Color(0xFFFF5277), Color(0xFFF43F5E)))
                             } else {
-                                Brush.linearGradient(listOf(surfaceVar, surfaceVar))
+                                Brush.linearGradient(listOf(Color(0xFFFFFFFF), Color(0xFFFFF2F5)))
                             }
-                            val textTint = MaterialTheme.colorScheme.onBackground
+                            val textTint = if (isMe) Color.White else Color(0xFF4C0519)
                             val bubbleShape = if (isMe) {
-                                RoundedCornerShape(topStart = 16.dp, topEnd = 4.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
+                                RoundedCornerShape(topStart = 18.dp, topEnd = 4.dp, bottomStart = 18.dp, bottomEnd = 18.dp)
                             } else {
-                                RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
+                                RoundedCornerShape(topStart = 4.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 18.dp)
                             }
 
                             val formattedTime = remember(message.timestamp) {
@@ -2213,19 +2554,19 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .background(CardSlate, RoundedCornerShape(12.dp))
+                                            .background(Color(0xFFFFEEF0).copy(alpha = 0.8f), RoundedCornerShape(12.dp))
                                             .padding(10.dp)
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             CircularProgressIndicator(
                                                 modifier = Modifier.size(12.dp),
-                                                color = AccentBlue,
+                                                color = Color(0xFFFF5277),
                                                 strokeWidth = 2.dp
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
                                                 text = "typing...",
-                                                color = TextMuted,
+                                                color = Color(0xFFBE123C),
                                                 fontSize = 11.sp
                                             )
                                         }
@@ -2242,7 +2583,7 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
 
             // Bottom Message Type Box Input
             Surface(
-                color = CardSlate,
+                color = Color(0xFFFFD1DC).copy(alpha = 0.95f),
                 tonalElevation = 6.dp,
                 modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
             ) {
@@ -2294,7 +2635,7 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
                                         .size(width = 2.dp, height = (14 * h).dp)
                                         .clip(RoundedCornerShape(1.dp))
                                         .background(Color.Red.copy(alpha = 0.6f))
-                                )
+                                 )
                             }
                         }
 
@@ -2338,31 +2679,82 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(onClick = { photoPickerLauncher.launch("image/*") }) {
-                            Icon(Icons.Default.Add, contentDescription = "Add Photo", tint = TextLight)
+                            Icon(Icons.Default.Add, contentDescription = "Add Photo", tint = Color(0xFFBE123C))
                         }
 
                         IconButton(onClick = { isViewOnce = !isViewOnce }) {
                             Icon(
                                 imageVector = if (isViewOnce) Icons.Default.Timer else Icons.Default.History,
                                 contentDescription = "Toggle View Once",
-                                tint = if (isViewOnce) AccentRose else TextMuted
+                                tint = if (isViewOnce) Color(0xFFE11D48) else Color(0xFFD4AF37)
                             )
+                        }
+
+                        var isInputFocused by remember { mutableStateOf(false) }
+                        val inputScale by animateFloatAsState(
+                            targetValue = if (isInputFocused) 1.02f else 1.0f,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+                            label = "message_input_focus_scale"
+                        )
+                        val inputElevation by animateDpAsState(
+                            targetValue = if (isInputFocused) 6.dp else 1.dp,
+                            label = "message_input_focus_elevation"
+                        )
+                        val shimmerInfinite = rememberInfiniteTransition(label = "message_input_shimmer")
+                        val shimmerOffsetPercent by shimmerInfinite.animateFloat(
+                            initialValue = 0f,
+                            targetValue = 1f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(2500, easing = LinearEasing),
+                                repeatMode = RepeatMode.Restart
+                            ),
+                            label = "message_input_shimmer_perc"
+                        )
+                        val inputBorderBrush = remember(shimmerOffsetPercent, isInputFocused) {
+                            if (isInputFocused) {
+                                Brush.linearGradient(
+                                    colors = listOf(
+                                        Color(0xFFFFD700), // Royal Gold
+                                        Color(0xFFFF5277), // Silk Rose
+                                        Color(0xFFFFF7AC), // soft Gold Highlights
+                                        Color(0xFFFF5277), // Silk Rose
+                                        Color(0xFFFFD700)  // Royal Gold
+                                    ),
+                                    start = androidx.compose.ui.geometry.Offset(shimmerOffsetPercent * 400f, 0f),
+                                    end = androidx.compose.ui.geometry.Offset((shimmerOffsetPercent + 1f) * 400f, 400f)
+                                )
+                            } else {
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFFFFD1DC), Color(0xFFFFD1DC).copy(alpha = 0.4f))
+                                )
+                            }
                         }
 
                         TextField(
                             value = messageText,
                             onValueChange = { messageText = it },
-                            placeholder = { Text("Message...", color = TextMuted, fontSize = 14.sp) },
+                            placeholder = { Text("अपना गुप्त संदेश लिखें...", color = Color(0xFF9E3F5C), fontSize = 14.sp) },
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(24.dp))
-                                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
+                                .graphicsLayer {
+                                    scaleX = inputScale
+                                    scaleY = inputScale
+                                    shadowElevation = inputElevation.toPx()
+                                    clip = true
+                                    shape = RoundedCornerShape(24.dp)
+                                }
+                                .onFocusChanged { isInputFocused = it.isFocused }
+                                .border(
+                                    width = if (isInputFocused) 2.2.dp else 1.5.dp,
+                                    brush = inputBorderBrush,
+                                    shape = RoundedCornerShape(24.dp)
+                                )
                                 .testTag("direct_message_text_input"),
                             colors = TextFieldDefaults.colors(
-                                focusedContainerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.6f),
-                                unfocusedContainerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.6f),
-                                focusedTextColor = TextLight,
-                                unfocusedTextColor = TextLight,
+                                focusedContainerColor = Color.White.copy(alpha = 0.95f),
+                                unfocusedContainerColor = Color.White.copy(alpha = 0.8f),
+                                focusedTextColor = Color(0xFF4C0519),
+                                unfocusedTextColor = Color(0xFF4C0519),
                                 focusedIndicatorColor = Color.Transparent,
                                 unfocusedIndicatorColor = Color.Transparent,
                                 disabledIndicatorColor = Color.Transparent
@@ -2375,13 +2767,13 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
                             IconButton(
                                 onClick = { startAudRecorder() },
                                 modifier = Modifier
-                                    .background(MaterialTheme.colorScheme.primary, CircleShape)
+                                    .background(Color(0xFFFF5277), CircleShape)
                                     .size(44.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Mic,
                                     contentDescription = "Record Voice Message",
-                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    tint = Color.White,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -2395,14 +2787,14 @@ fun InstagramChatRoomView(viewModel: CalculatorViewModel) {
                                     }
                                 },
                                 modifier = Modifier
-                                    .background(MaterialTheme.colorScheme.primary, CircleShape)
+                                    .background(Color(0xFFFF5277), CircleShape)
                                     .size(44.dp)
                                     .testTag("direct_message_send_btn")
                             ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.Send,
                                     contentDescription = "Send Direct Message",
-                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    tint = Color.White,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -2907,7 +3299,6 @@ fun DirectUsersDirectoryView(viewModel: CalculatorViewModel) {
         )
     }
 }
-
 @Composable
 fun SwipeableMessageItem(
     message: ChatMessage,
@@ -2926,6 +3317,48 @@ fun SwipeableMessageItem(
     var offsetX by remember { mutableStateOf(0f) }
     val density = androidx.compose.ui.platform.LocalDensity.current
     val limitPx = with(density) { 90.dp.toPx() }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "message_bubble_3d")
+    val bubbleFloatY by infiniteTransition.animateFloat(
+        initialValue = -3f,
+        targetValue = 3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "translateY"
+    )
+    val bubbleScale by infiniteTransition.animateFloat(
+        initialValue = 0.98f,
+        targetValue = 1.02f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+    val animShimmerLoc by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmer_percent"
+    )
+    val silkyGoldenBrush = remember(animShimmerLoc) {
+        Brush.linearGradient(
+            colors = listOf(
+                Color(0xFFFFD700), // Pure Gold
+                Color(0xFFFFF7AC), // Soft Creamy Silk Gold
+                Color(0xFFEAB308), // Dark Gold
+                Color(0xFFFFF7AC), // Shimmering Highlights
+                Color(0xFFFFD700)  // Gold
+            ),
+            start = androidx.compose.ui.geometry.Offset(animShimmerLoc * 300f, 0f),
+            end = androidx.compose.ui.geometry.Offset((animShimmerLoc + 1f) * 300f, 300f)
+        )
+    }
 
     Box(
         modifier = Modifier
@@ -3008,7 +3441,7 @@ fun SwipeableMessageItem(
             modifier = Modifier
                 .offset { IntOffset(offsetX.roundToInt(), 0) }
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.background),
+                .background(Color.Transparent),
             horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
         ) {
             if (!isMe) {
@@ -3048,12 +3481,63 @@ fun SwipeableMessageItem(
                 Spacer(modifier = Modifier.width(8.dp))
             }
 
+            val isShortText = message.audioBase64 == null && message.imageUri == null && message.text.length <= 40
+            val finalShape = if (isShortText) {
+                HeartShapeInstance
+            } else {
+                if (isMe) {
+                    RoundedCornerShape(topStart = 18.dp, topEnd = 4.dp, bottomStart = 18.dp, bottomEnd = 18.dp)
+                } else {
+                    RoundedCornerShape(topStart = 4.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 18.dp)
+                }
+            }
+            val finalBg = if (isShortText) {
+                bubbleBg
+            } else {
+                if (isMe) {
+                    Brush.linearGradient(listOf(Color(0xFFFF5277).copy(alpha = 0.95f), Color(0xFFE11D48).copy(alpha = 0.95f)))
+                } else {
+                    Brush.linearGradient(listOf(Color.White.copy(alpha = 0.9f), Color(0xFFFFF0F3).copy(alpha = 0.85f)))
+                }
+            }
+            val finalBorderWidth = if (isShortText) 2.5.dp else 1.2.dp
+            val finalBorderBrush = if (isShortText) {
+                silkyGoldenBrush
+            } else {
+                if (isMe) {
+                    Brush.linearGradient(listOf(Color(0xFFFFD1DC), Color(0xFFFF5277)))
+                } else {
+                    Brush.linearGradient(listOf(Color(0xFFFFD1DC), Color(0xFFFFD1DC).copy(alpha = 0.3f)))
+                }
+            }
+            val finalTextColor = if (isShortText) {
+                textTint
+            } else {
+                if (isMe) Color.White else Color(0xFF4C0519)
+            }
+
             Box(
                 modifier = Modifier
                     .widthIn(max = 270.dp)
-                    .clip(bubbleShape)
-                    .background(bubbleBg)
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .graphicsLayer {
+                        translationY = bubbleFloatY
+                        scaleX = bubbleScale
+                        scaleY = bubbleScale
+                    }
+                    .clip(finalShape)
+                    .background(finalBg)
+                    .border(
+                        width = finalBorderWidth,
+                        brush = finalBorderBrush,
+                        shape = finalShape
+                    )
+                    .then(
+                        if (isShortText) {
+                            Modifier.padding(start = 22.dp, end = 22.dp, top = 22.dp, bottom = 24.dp)
+                        } else {
+                            Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                        }
+                    )
             ) {
                 Column {
                     if (message.audioBase64 != null) {
@@ -3074,12 +3558,12 @@ fun SwipeableMessageItem(
                             contentScale = ContentScale.Crop
                         )
                         if (message.isViewOnce) {
-                            Text("(View Once)", color = textTint, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+                            Text("(View Once)", color = finalTextColor, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
                         }
                     } else {
                         Text(
                             text = message.text,
-                            color = textTint,
+                            color = finalTextColor,
                             fontSize = 14.sp,
                             lineHeight = 20.sp,
                             modifier = Modifier.padding(bottom = 2.dp)
@@ -3102,7 +3586,7 @@ fun SwipeableMessageItem(
                         }
                         Text(
                             text = formattedTime,
-                            color = TextLight.copy(alpha = 0.5f),
+                            color = finalTextColor.copy(alpha = 0.75f),
                             fontSize = 9.sp,
                             modifier = Modifier.padding(end = 4.dp)
                         )
@@ -3118,7 +3602,7 @@ fun SwipeableMessageItem(
                                 Icon(
                                     imageVector = Icons.Default.DoneAll,
                                     contentDescription = "Sent checkmark",
-                                    tint = TextLight.copy(alpha = 0.4f),
+                                    tint = if (isShortText) TextLight.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.4f),
                                     modifier = Modifier.size(14.dp)
                                 )
                             }
@@ -3126,6 +3610,7 @@ fun SwipeableMessageItem(
                     }
                 }
             }
+            Spacer(modifier = Modifier.width(8.dp))
         }
     }
 }
@@ -3205,6 +3690,17 @@ fun VoiceMessagePlayer(audioBase64: String, durationMs: Int) {
         }
     }
 
+    val infiniteTransition = rememberInfiniteTransition(label = "waveform_pulse")
+    val waveScale by infiniteTransition.animateFloat(
+        initialValue = 0.82f,
+        targetValue = 1.18f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 320, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_scale"
+    )
+
     val minutes = (currentPosition / 1000) / 60
     val seconds = (currentPosition / 1000) % 60
     val durationText = String.format("%02d:%02d", minutes, seconds)
@@ -3260,7 +3756,12 @@ fun VoiceMessagePlayer(audioBase64: String, durationMs: Int) {
                     val barCount = 18
                     val progressLimit = (progress * barCount).toInt()
                     for (i in 0 until barCount) {
-                        val heightFraction = remember { listOf(0.3f, 0.7f, 0.5f, 0.8f, 0.4f, 0.9f, 0.6f, 0.3f, 0.7f, 0.5f, 0.8f, 0.4f, 0.9f, 0.6f, 0.4f, 0.7f, 0.5f, 0.8f)[i % 18] }
+                        val baseFraction = remember { listOf(0.3f, 0.7f, 0.5f, 0.8f, 0.4f, 0.9f, 0.6f, 0.3f, 0.7f, 0.5f, 0.8f, 0.4f, 0.9f, 0.6f, 0.4f, 0.7f, 0.5f, 0.8f)[i % 18] }
+                        val heightFraction = if (isPlaying && i > progressLimit) {
+                            (baseFraction * waveScale).coerceIn(0.15f, 1f)
+                        } else {
+                            baseFraction
+                        }
                         val barColor = if (i <= progressLimit) Color.White else Color.White.copy(alpha = 0.35f)
                         Box(
                             modifier = Modifier
@@ -3508,5 +4009,35 @@ fun downloadChatImage(context: android.content.Context, imageUri: String, onResu
                 onResult(false, "त्रुटि: ${e.message}")
             }
         }
+    }
+}
+
+val HeartShapeInstance = HeartShape()
+
+class HeartShape : Shape {
+    override fun createOutline(
+        size: androidx.compose.ui.geometry.Size,
+        layoutDirection: LayoutDirection,
+        density: Density
+    ): Outline {
+        val path = Path().apply {
+            val width = size.width
+            val height = size.height
+            moveTo(width / 2f, height * 0.25f)
+            cubicTo(
+                width * 0.15f, height * -0.05f,
+                -width * 0.12f, height * 0.35f,
+                width * 0.15f, height * 0.65f
+            )
+            lineTo(width / 2f, height * 0.95f)
+            lineTo(width * 0.85f, height * 0.65f)
+            cubicTo(
+                width * 1.12f, height * 0.35f,
+                width * 0.85f, height * -0.05f,
+                width / 2f, height * 0.25f
+            )
+            close()
+        }
+        return Outline.Generic(path)
     }
 }

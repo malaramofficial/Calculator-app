@@ -2,6 +2,7 @@ package com.aistudio.calculator.ywrbt.ui.theme
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
@@ -53,16 +54,16 @@ private val ThemeRoyalAmethyst = darkColorScheme(
     onSurface = Color(0xFFF8FAFC)
 )
 
-private val ThemeLoveVelvet = darkColorScheme(
-    primary = Color(0xFFFF5277), // Soft Cupid Rose
-    secondary = Color(0xFF5E1B2C), // Deep Velvet Wine button
-    tertiary = Color(0xFFFF8DA1), // Soft sweet bubble pink
-    background = Color(0xFF1E050B), // Silky dark cherry background
-    surface = Color(0xFF3B0E1B), // Soft heart velvet surface card
-    onPrimary = Color(0xFF1E050B),
-    onSecondary = Color(0xFFFFF0F3),
-    onBackground = Color(0xFFFFF0F3),
-    onSurface = Color(0xFFFFF0F3)
+private val ThemeLoveVelvet = lightColorScheme(
+    primary = Color(0xFFFF5277), // Soft Cupid Rose Pink
+    secondary = Color(0xFFFF8DA1), // Soft sweet bubble pink
+    tertiary = Color(0xFFBE123C), // Deep romantic rose velvet crimson
+    background = Color(0xFFFFF0F3), // Luxurious soft white-pink romantic canvas
+    surface = Color(0xFFFFD1DC), // Soft heart pink card surface
+    onPrimary = Color.White,
+    onSecondary = Color(0xFF4C0519),
+    onBackground = Color(0xFF4C0519), // Deep maroon/cherry text for great contest
+    onSurface = Color(0xFF881337)
 )
 
 @Composable

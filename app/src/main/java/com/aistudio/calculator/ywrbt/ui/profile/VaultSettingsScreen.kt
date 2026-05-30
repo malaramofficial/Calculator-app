@@ -36,6 +36,7 @@ fun VaultSettingsScreen(
     val currentRingtone by viewModel.messageRingtone.collectAsState()
     val readReceiptsEnabled by viewModel.readReceiptsEnabled.collectAsState()
     val vibrateEnabled by viewModel.vibrateEnabled.collectAsState()
+    val backgroundSyncEnabled by viewModel.backgroundSyncEnabled.collectAsState()
     val googleEmail by viewModel.googleAccountEmail.collectAsState()
 
     var showPrivacyDialog by remember { mutableStateOf(false) }
@@ -379,6 +380,41 @@ fun VaultSettingsScreen(
                         Switch(
                             checked = readReceiptsEnabled,
                             onCheckedChange = { viewModel.setReadReceiptsEnabled(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = AccentBlue,
+                                uncheckedThumbColor = TextMuted,
+                                uncheckedTrackColor = ButtonSlate
+                            )
+                        )
+                    }
+
+                    HorizontalDivider(color = DarkSlateBg, thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
+
+                    // Background Chat Sync Toggle
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = SettingsLoc.t("bg_sync_title", currentLanguage),
+                                color = TextLight,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = SettingsLoc.t("bg_sync_desc", currentLanguage),
+                                color = TextMuted,
+                                fontSize = 11.sp
+                            )
+                        }
+                        Switch(
+                            checked = backgroundSyncEnabled,
+                            onCheckedChange = { viewModel.setBackgroundSyncEnabled(it) },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,
                                 checkedTrackColor = AccentBlue,
