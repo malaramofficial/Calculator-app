@@ -39,3 +39,4 @@ steps:
     with:
       name: release-apk
       path: app/build/outputs/apk/release/*.apk
+
