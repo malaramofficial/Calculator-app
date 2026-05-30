@@ -3,19 +3,19 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-android {
+android { // <--- 1. Android Block Shuru
     namespace = "com.malaram.calculator"
     compileSdk = 34
 
-    defaultConfig {
+    defaultConfig { // <--- 2. DefaultConfig Shuru
         applicationId = "com.malaram.calculator"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-    }
+    } // <--- 2. DefaultConfig Khatam
 
-    // <--- Yahan se shuru karein (Android block ke andar)
+    // --- YE SAHI JAGAH HAI ---
     signingConfigs {
         create("release") {
             storeFile = file("../release.jks")
@@ -32,5 +32,4 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
-    // <--- Yahan Android block khatam hota hai
-}
+} // <--- 1. Android Block Khatam (ISKE BAHAR KUCH NAHI HONA CHAHIYE)
