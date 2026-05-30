@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.malaram.calculator" // Apna asli package name check karein
+    namespace = "com.malaram.calculator"
     compileSdk = 34
 
     defaultConfig {
@@ -15,7 +15,7 @@ android {
         versionName = "1.0"
     }
 
-    // YAHAN SE DHAYAN DEIN - Ye ANDROID block ke andar hai
+    // <--- Yahan se shuru karein (Android block ke andar)
     signingConfigs {
         create("release") {
             storeFile = file("../release.jks")
@@ -32,4 +32,5 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
-} // <--- Ye Bracket 'android' block ko band karta hai
+    // <--- Yahan Android block khatam hota hai
+}
