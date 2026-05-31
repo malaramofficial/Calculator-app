@@ -24,10 +24,10 @@ android {
         buildConfigField("String", "CLOUDINARY_API_SECRET", "\"oHqH2-oyDM7t7htVQkGrf0yVi7c\"")
     }
 
-    // 1. SIGNING CONFIGS - Isse app sign hoga
     signingConfigs {
         create("release") {
-            storeFile = file("../release.jks")
+            // File path root se check karega kyunki ye app module ke andar hai
+            storeFile = file("../release.jks") 
             storePassword = System.getenv("KEYSTORE_PASSWORD")
             keyAlias = System.getenv("KEY_ALIAS")
             keyPassword = System.getenv("KEY_PASSWORD")
@@ -37,9 +37,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            // 2. CONNECT SIGNING CONFIG - Is line ko add kiya hai
             signingConfig = signingConfigs.getByName("release")
-            
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -95,7 +93,6 @@ dependencies {
     implementation(libs.coil.compose)
 }
 
-// Baki tasks ko waise hi rehne dein
 tasks.register("copyApkToRoot") {
     doLast {
         val apkFile = file("build/outputs/apk/debug/app-debug.apk")
@@ -112,4 +109,3 @@ tasks.register("copyApkToRoot") {
 afterEvaluate {
     tasks.findByName("assembleDebug")?.finalizedBy("copyApkToRoot")
 }
-
