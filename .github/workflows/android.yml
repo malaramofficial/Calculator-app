@@ -7,7 +7,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    environment: Calculator
+    # Agar aapne secrets 'Calculator' environment mein dale hain toh ye line sahi hai
+    environment: Calculator 
 
     steps:
     - uses: actions/checkout@v4
@@ -22,19 +23,19 @@ jobs:
     - name: Grant execute permission
       run: chmod +x gradlew
 
-    # 🔐 Decode Keystore (Isse 'app' folder ke andar hi banayein)
+    # 🔐 Decode Keystore (Root directory mein 'release.jks' naam se banayega)
     - name: Decode Keystore
       run: |
-        echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > app/release.keystore
+        echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > release.jks
 
     # 🔥 Build Release APK
     - name: Build Release APK
       run: ./gradlew assembleRelease
       env:
-        # Ye names aapke build.gradle.kts ke System.getenv() se match hone chahiye
-        SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-        SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        # Ye names aapke build.gradle.kts ke System.getenv() se exact match hone chahiye
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
     # 📦 Upload APK
     - name: Upload Release APK
@@ -42,4 +43,4 @@ jobs:
       with:
         name: release-apk
         path: app/build/outputs/apk/release/*.apk
-  
+      
