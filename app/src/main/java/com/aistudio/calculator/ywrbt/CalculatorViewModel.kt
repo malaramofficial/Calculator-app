@@ -366,8 +366,13 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     private suspend fun uploadToCloudinary(uriString: String): String? {
+        val uploadPreset = BuildConfig.CLOUDINARY_UPLOAD_PRESET
+        if (uploadPreset.isBlank()) {
+            android.util.Log.w("CalculatorViewModel", "Cloudinary upload skipped: unsigned upload preset is not configured")
+            return null
+        }
         return suspendCancellableCoroutine { continuation ->
-            MediaManager.get().upload(android.net.Uri.parse(uriString))
+            MediaManager.get().upload(android.net.Uri.parse(uriString)).unsigned(uploadPreset)
                 .callback(object : UploadCallback {
                     override fun onStart(requestId: String?) {
                         android.util.Log.d("CalculatorViewModel", "Cloudinary upload started: $requestId")
@@ -421,8 +426,7 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
         // Firebase & Cloudinary Init
         val config = mapOf(
             "cloud_name" to BuildConfig.CLOUDINARY_CLOUD_NAME,
-            "api_key" to BuildConfig.CLOUDINARY_API_KEY,
-            "api_secret" to BuildConfig.CLOUDINARY_API_SECRET
+            "api_key" to BuildConfig.CLOUDINARY_API_KEY
         )
         try {
             MediaManager.init(application, config)
