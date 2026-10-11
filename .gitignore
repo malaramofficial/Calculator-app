@@ -4,3 +4,18 @@ gradle/wrapper/gradle-wrapper.properties
 gradlew
 gradlew.bat
 
+
+# Local secrets and signing material
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+debug.keystore.base64
+
+# Generated build output (keep APKs out of source control)
+.gradle/
+**/build/
+.build-outputs/
+app-debug.apk
+malaramofficial/app-debug.apk
