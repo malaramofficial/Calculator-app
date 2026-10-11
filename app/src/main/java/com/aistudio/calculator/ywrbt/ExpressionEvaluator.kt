@@ -1,6 +1,6 @@
 package com.aistudio.calculator.ywrbt
 
-import kotlin.math.*
+import java.util.Locale
 
 object ExpressionEvaluator {
     fun evaluate(expression: String): String {
@@ -8,15 +8,18 @@ object ExpressionEvaluator {
         if (cleanExpr.isBlank()) return "0"
         return try {
             val result = eval(cleanExpr)
-            if (result.isNaN()) {
+            if (!result.isFinite()) {
                 "Error"
             } else {
-                // If it's a whole number, format without decimal points
-                if (result == result.toLong().toDouble()) {
+                // Avoid Long overflow when formatting very large whole numbers.
+                if (result % 1.0 == 0.0 &&
+                    result >= Long.MIN_VALUE.toDouble() &&
+                    result < Long.MAX_VALUE.toDouble()
+                ) {
                     result.toLong().toString()
                 } else {
-                    // Maximum of 6 decimal places for display neatness
-                    String.format("%.6f", result).trimEnd('0').trimEnd('.')
+                    // Use a stable decimal separator regardless of device locale.
+                    String.format(Locale.US, "%.6f", result).trimEnd('0').trimEnd('.')
                 }
             }
         } catch (e: Exception) {
@@ -71,6 +74,7 @@ object ExpressionEvaluator {
             }
 
             fun parseFactor(): Double {
+                while (ch != -1 && ch.toChar().isWhitespace()) nextChar()
                 if (eat('+'.code)) return +parseFactor() // unary plus
                 if (eat('-'.code)) return -parseFactor() // unary minus
 
