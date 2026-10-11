@@ -21,7 +21,7 @@ android {
         buildConfigField("String", "GEMINI_API_KEY", "\"${System.getenv("GEMINI_API_KEY") ?: ""}\"")
         buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"dsnetrfzy\"")
         buildConfigField("String", "CLOUDINARY_API_KEY", "\"222321832832871\"")
-        buildConfigField("String", "CLOUDINARY_API_SECRET", "\"oHqH2-oyDM7t7htVQkGrf0yVi7c\"")
+        buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"${System.getenv("CLOUDINARY_UPLOAD_PRESET") ?: ""}\"")
     }
 
     signingConfigs {
